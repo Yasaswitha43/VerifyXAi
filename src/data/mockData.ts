@@ -1,4 +1,19 @@
-import { SyntheticDocument, UserProfile, NotificationItem } from '../types';
+import { SyntheticDocument, UserProfile, NotificationItem, LanguageOption } from '../types';
+
+export const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  { code: 'en', name: 'English (US)', nativeName: 'English (US)', flag: '🇺🇸', region: 'Default / International' },
+  { code: 'en-GB', name: 'English (UK)', nativeName: 'English (UK)', flag: '🇬🇧', region: 'United Kingdom / Europe' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', region: 'Spain & Latin America' },
+  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷', region: 'France & Canada' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪', region: 'Germany / DACH' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵', region: 'Japan' },
+  { code: 'zh', name: 'Chinese (Simplified)', nativeName: '简体中文', flag: '🇨🇳', region: 'East Asia' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳', region: 'India' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦', region: 'Middle East' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷', region: 'Brazil & Portugal' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', region: 'Italy' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷', region: 'South Korea' }
+];
 
 export const CURRENT_USER: UserProfile = {
   name: 'Dr. Evelyn Vance',
@@ -10,7 +25,8 @@ export const CURRENT_USER: UserProfile = {
   twoFactorEnabled: true,
   lastLogin: 'Today at 08:42 AM',
   scansPerformed: 1284,
-  clearanceLevel: 'Level 4 (Forensic Auditor)'
+  clearanceLevel: 'Level 4 (Forensic Auditor)',
+  language: 'en'
 };
 
 export const MOCK_NOTIFICATIONS: NotificationItem[] = [

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Lock, 
@@ -12,80 +12,117 @@ import {
   Building2, 
   CheckCircle2, 
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  KeyRound,
+  RefreshCw,
+  Copy,
+  Check,
+  Send
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { CURRENT_USER } from '../data/mockData';
+import { 
+  authenticateWithPassword, 
+  registerNewAccount, 
+  generateOtpForEmail, 
+  verifyOtpForEmail, 
+  resetAccountPassword,
+  validatePasswordStrength,
+  OtpRecord
+} from '../utils/authAccounts';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 
 interface LoginPageProps {
   onLoginSuccess: (user: UserProfile) => void;
   onCancel: () => void;
   initialMode?: 'login' | 'signup';
-  existingUser?: UserProfile | null;
 }
+
+type ForgotStep = 'request-otp' | 'verify-otp' | 'new-password' | 'success';
 
 export const LoginPage: React.FC<LoginPageProps> = ({ 
   onLoginSuccess, 
   onCancel,
-  initialMode = 'login',
-  existingUser = null
+  initialMode = 'login'
 }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot-password'>(initialMode);
   
-  // Login Form State
-  const [email, setEmail] = useState('elena.rostova@forensics.verifyx.ai');
-  const [password, setPassword] = useState('VerifyX2026@Secure');
+  // Login Form State (Clean and empty - no residual logged user information)
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Sign Up Form State
-  const [signupName, setSignupName] = useState('Marcus Thorne');
-  const [signupEmail, setSignupEmail] = useState('m.thorne@cyber-investigations.gov');
-  const [signupOrg, setSignupOrg] = useState('Federal Forensic Division');
-  const [signupPassword, setSignupPassword] = useState('ForensicSecurity99!');
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState('ForensicSecurity99!');
+  // Sign Up Form State (Clean and empty)
+  const [signupName, setSignupName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupOrg, setSignupOrg] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
 
-  // Forgot Password State
+  // Forgot Password & OTP Flow State
+  const [forgotStep, setForgotStep] = useState<ForgotStep>('request-otp');
   const [forgotEmail, setForgotEmail] = useState('');
-  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
+  const [otpValue, setOtpValue] = useState('');
+  const [dispatchedOtp, setDispatchedOtp] = useState<OtpRecord | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [copiedOtp, setCopiedOtp] = useState(false);
 
+  // Timer countdown for OTP resend cooldown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => {
+        setResendCooldown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  // =========================================================================
   // 1. Handle Standard Credentials Login
+  // =========================================================================
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
 
-    if (!email.trim() || !password.trim()) {
-      setAuthError('Please enter both your work email and password.');
+    if (!email.trim()) {
+      setAuthError('Please enter your work email address.');
+      return;
+    }
+    if (!password) {
+      setAuthError('Please enter your account password.');
       return;
     }
 
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      // Construct or match user profile
-      const authenticatedUser: UserProfile = {
-        name: email.includes('elena') ? CURRENT_USER.name : email.split('@')[0].replace('.', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
-        email: email.trim(),
-        role: 'Lead Forensic Examiner',
-        organization: 'National Cyber Forensics Laboratory',
-        badgeId: 'VX-FORENSIC-8492',
-        avatarUrl: CURRENT_USER.avatarUrl,
-        twoFactorEnabled: true,
-        lastLogin: 'Today at ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        scansPerformed: 128,
-        clearanceLevel: 'Level 4 Clearance'
-      };
-      onLoginSuccess(authenticatedUser);
-    }, 400);
+      const authResult = authenticateWithPassword(email, password);
+
+      if (!authResult.success) {
+        setAuthError(authResult.error || 'Authentication failed. Please verify your email and password.');
+        return;
+      }
+
+      if (authResult.user) {
+        onLoginSuccess(authResult.user);
+      }
+    }, 450);
   };
 
-  // 2. Handle "Continue with Google" Frontend Mock Authentication Flow
+  // =========================================================================
+  // 2. Handle "Continue with Google"
+  // =========================================================================
   const handleContinueWithGoogle = () => {
     setIsLoading(true);
     setAuthError(null);
 
-    // Mock Google authentication delay and payload
     setTimeout(() => {
       setIsLoading(false);
       const googleMockUser: UserProfile = {
@@ -104,52 +141,171 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }, 450);
   };
 
-  // 3. Handle Account Creation (Sign Up)
+  // =========================================================================
+  // 3. Handle Account Creation (Sign Up with Strong Password Enforcement)
+  // =========================================================================
   const handleSignupSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
 
-    if (!signupName.trim() || !signupEmail.trim() || !signupPassword.trim()) {
+    if (!signupName.trim() || !signupEmail.trim() || !signupPassword) {
       setAuthError('Please fill in all mandatory account fields.');
       return;
     }
 
+    // Strong password validation check
+    const validation = validatePasswordStrength(signupPassword);
+    if (!validation.isStrong) {
+      const missingRules: string[] = [];
+      if (!validation.hasMinLength) missingRules.push('at least 8 characters');
+      if (!validation.hasCapital) missingRules.push('at least one capital letter');
+      if (!validation.hasNumber) missingRules.push('at least one number');
+      if (!validation.hasSpecial) missingRules.push('at least one special character');
+
+      setAuthError(`Password is not strong enough. It must contain: ${missingRules.join(', ')}.`);
+      return;
+    }
+
     if (signupPassword !== signupConfirmPassword) {
-      setAuthError('Passwords do not match. Please verify.');
+      setAuthError('Passwords do not match. Please verify your confirmation password.');
       return;
     }
 
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      const newAccountUser: UserProfile = {
-        name: signupName.trim(),
-        email: signupEmail.trim(),
-        role: 'Forensic Document Specialist',
-        organization: signupOrg.trim() || 'VerifyX Partner Network',
-        badgeId: `VX-${Math.floor(1000 + Math.random() * 9000)}`,
-        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250',
-        twoFactorEnabled: true,
-        lastLogin: 'First Session Initialized',
-        scansPerformed: 0,
-        clearanceLevel: 'Level 3 Clearance'
-      };
-      onLoginSuccess(newAccountUser);
+      const regResult = registerNewAccount(signupName, signupEmail, signupPassword, signupOrg);
+
+      if (!regResult.success) {
+        setAuthError(regResult.error || 'Unable to register account.');
+        return;
+      }
+
+      if (regResult.user) {
+        onLoginSuccess(regResult.user);
+      }
+    }, 500);
+  };
+
+  // =========================================================================
+  // 4. Forgot Password Flow: Request OTP
+  // =========================================================================
+  const handleRequestOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    if (!forgotEmail.trim()) {
+      setAuthError('Please enter your account email address to receive an OTP.');
+      return;
+    }
+
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      const record = generateOtpForEmail(forgotEmail);
+      setDispatchedOtp(record);
+      setResendCooldown(45); // 45 seconds cooldown
+      setForgotStep('verify-otp');
+    }, 500);
+  };
+
+  // Resend OTP handler
+  const handleResendOtp = () => {
+    if (resendCooldown > 0) return;
+    setAuthError(null);
+    setIsLoading(true);
+
+    setTimeout(() => {
+      setIsLoading(false);
+      const record = generateOtpForEmail(forgotEmail);
+      setDispatchedOtp(record);
+      setResendCooldown(45);
+      setCopiedOtp(false);
+    }, 400);
+  };
+
+  // Quick auto-fill helper for testability
+  const handleAutoFillOtp = () => {
+    if (dispatchedOtp) {
+      setOtpValue(dispatchedOtp.otp);
+      setCopiedOtp(true);
+      setTimeout(() => setCopiedOtp(false), 2000);
+    }
+  };
+
+  // =========================================================================
+  // 5. Forgot Password Flow: Verify OTP
+  // =========================================================================
+  const handleVerifyOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    if (!otpValue.trim() || otpValue.trim().length !== 6) {
+      setAuthError('Please enter the complete 6-digit One-Time Password.');
+      return;
+    }
+
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      const verifyResult = verifyOtpForEmail(forgotEmail, otpValue);
+
+      if (!verifyResult.success) {
+        setAuthError(verifyResult.error || 'Invalid OTP code. Please check your email.');
+        return;
+      }
+
+      // Move to set new password step
+      setForgotStep('new-password');
     }, 450);
   };
 
-  // 4. Handle Forgot Password
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  // =========================================================================
+  // 6. Forgot Password Flow: Set New Strong Password
+  // =========================================================================
+  const handleSetNewPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotEmail.trim()) {
-      setAuthError('Please enter a valid email address.');
+    setAuthError(null);
+
+    const validation = validatePasswordStrength(newPassword);
+    if (!validation.isStrong) {
+      const missing: string[] = [];
+      if (!validation.hasMinLength) missing.push('at least 8 characters');
+      if (!validation.hasCapital) missing.push('a capital letter');
+      if (!validation.hasNumber) missing.push('a number');
+      if (!validation.hasSpecial) missing.push('a special character');
+
+      setAuthError(`New password is not strong enough. Missing: ${missing.join(', ')}.`);
       return;
     }
+
+    if (newPassword !== confirmNewPassword) {
+      setAuthError('New passwords do not match. Please verify.');
+      return;
+    }
+
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      setResetSuccessMessage(`Password recovery instructions and a secure one-time verification link have been dispatched to ${forgotEmail}.`);
-    }, 400);
+      const resetResult = resetAccountPassword(forgotEmail, newPassword);
+
+      if (!resetResult.success) {
+        setAuthError(resetResult.error || 'Failed to update password.');
+        return;
+      }
+
+      // Success
+      setForgotStep('success');
+    }, 500);
+  };
+
+  // Finish reset and return to login with prefilled credentials
+  const handleFinishReset = () => {
+    setEmail(forgotEmail);
+    setPassword(newPassword);
+    setMode('login');
+    setForgotStep('request-otp');
+    setAuthError(null);
   };
 
   // Quick Demo Fast Login
@@ -157,11 +313,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      onLoginSuccess({
-        ...CURRENT_USER,
-        role: role === 'lead' ? 'Lead Forensic Examiner' : 'Compliance & Risk Officer',
-        clearanceLevel: role === 'lead' ? 'Level 4 Clearance' : 'Level 2 Clearance'
-      });
+      const demoEmail = role === 'lead' ? 'elena.rostova@forensics.verifyx.ai' : 'chalapaka2022@gmail.com';
+      const auth = authenticateWithPassword(demoEmail, 'VerifyX2026@Secure');
+      if (auth.success && auth.user) {
+        onLoginSuccess(auth.user);
+      } else {
+        onLoginSuccess({
+          ...CURRENT_USER,
+          role: role === 'lead' ? 'Lead Forensic Examiner' : 'Compliance & Risk Officer',
+          clearanceLevel: role === 'lead' ? 'Level 4 Clearance' : 'Level 2 Clearance'
+        });
+      }
     }, 300);
   };
 
@@ -174,7 +336,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <button
             id="login-back-to-home-btn"
             onClick={onCancel}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-all shadow-xs group"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-all shadow-xs group cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4 text-cyan-500 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Home</span>
@@ -186,61 +348,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </span>
         </div>
 
-        {/* Existing Active Account Alert if previously logged in */}
-        {existingUser && (
-          <div className="p-3.5 rounded-2xl bg-cyan-500/10 dark:bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between gap-3 text-left">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <img
-                src={existingUser.avatarUrl}
-                alt={existingUser.name}
-                className="w-8 h-8 rounded-lg object-cover ring-1 ring-cyan-500/40 shrink-0"
-              />
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                  {existingUser.name}
-                </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                  Logged in as {existingUser.email}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => onLoginSuccess(existingUser)}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-colors shrink-0 flex items-center gap-1"
-            >
-              <span>Continue</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
         {/* Main Authentication Card */}
         <div className="rounded-3xl p-6 sm:p-8 bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800/80 shadow-2xl backdrop-blur-xl text-left space-y-6">
           
           {/* Card Header */}
           <div className="text-center space-y-2">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500/20 via-blue-500/10 to-indigo-500/20 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 shadow-md shadow-cyan-500/10">
-              <ShieldCheck className="w-6 h-6 text-cyan-500" />
+              {mode === 'forgot-password' ? (
+                <KeyRound className="w-6 h-6 text-cyan-500" />
+              ) : (
+                <ShieldCheck className="w-6 h-6 text-cyan-500" />
+              )}
             </div>
             
             <h1 className="text-2xl font-extrabold font-display tracking-tight text-slate-900 dark:text-white">
               {mode === 'login' && 'Sign In to VerifyX'}
               {mode === 'signup' && 'Create Your Account'}
-              {mode === 'forgot-password' && 'Password Recovery'}
+              {mode === 'forgot-password' && 'Password Recovery via OTP'}
             </h1>
             
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-              {mode === 'login' && 'Access the forensic document intelligence platform'}
-              {mode === 'signup' && 'Join the enterprise network for tamper detection and forensic verification'}
-              {mode === 'forgot-password' && 'Enter your email to receive recovery instructions'}
+              {mode === 'login' && 'Enter your verified credentials to access the forensic intelligence console'}
+              {mode === 'signup' && 'Join the forensic intelligence network with strong cryptographic credentials'}
+              {mode === 'forgot-password' && 'Verify your identity using a One-Time Password sent to your email'}
             </p>
           </div>
 
           {/* Global Error Banner */}
           {authError && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{authError}</span>
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed font-medium">{authError}</span>
             </div>
           )}
 
@@ -250,15 +388,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           {mode === 'login' && (
             <div className="space-y-5">
               
-              {/* Continue with Google (Frontend Mock Flow) */}
+              {/* Continue with Google */}
               <button
                 id="login-continue-with-google-btn"
                 type="button"
                 onClick={handleContinueWithGoogle}
                 disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-3 group"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-3 group cursor-pointer"
               >
-                {/* Official Google G SVG Icon */}
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
@@ -284,7 +421,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
                 <span className="bg-white dark:bg-slate-900 px-3 text-[11px] font-mono uppercase tracking-wider text-slate-400 shrink-0">
-                  Or with email
+                  Or login with password
                 </span>
               </div>
 
@@ -327,10 +464,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       onClick={() => {
                         setForgotEmail(email);
                         setMode('forgot-password');
-                        setResetSuccessMessage(null);
+                        setForgotStep('request-otp');
                         setAuthError(null);
+                        setOtpValue('');
+                        setNewPassword('');
+                        setConfirmNewPassword('');
                       }}
-                      className="text-xs font-medium text-cyan-600 dark:text-cyan-400 hover:underline"
+                      className="text-xs font-medium text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
                     >
                       Forgot Password?
                     </button>
@@ -349,7 +489,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                       aria-label="Toggle password visibility"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -362,9 +502,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   id="login-submit-btn"
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.01]"
+                  className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] cursor-pointer"
                 >
-                  <span>{isLoading ? 'Authenticating Specimen...' : 'Login'}</span>
+                  <span>{isLoading ? 'Verifying Credentials...' : 'Login to Account'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
@@ -380,7 +520,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       setMode('signup');
                       setAuthError(null);
                     }}
-                    className="font-bold text-cyan-600 dark:text-cyan-400 hover:underline ml-1"
+                    className="font-bold text-cyan-600 dark:text-cyan-400 hover:underline ml-1 cursor-pointer"
                   >
                     Create Account
                   </button>
@@ -390,14 +530,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               {/* Quick Demo Access Badges */}
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
                 <p className="text-[11px] text-slate-400 text-center font-mono uppercase tracking-wider">
-                  Instant Demo Access:
+                  Default Demo Credentials:
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     id="login-quick-demo-lead"
                     type="button"
                     onClick={() => handleQuickDemo('lead')}
-                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
+                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <UserCheck className="w-3.5 h-3.5 text-cyan-500" />
                     <span>Lead Examiner</span>
@@ -406,10 +546,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     id="login-quick-demo-risk"
                     type="button"
                     onClick={() => handleQuickDemo('auditor')}
-                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
+                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <UserCheck className="w-3.5 h-3.5 text-cyan-500" />
-                    <span>Risk Officer</span>
+                    <span>Halapaka (Executive)</span>
                   </button>
                 </div>
               </div>
@@ -418,47 +558,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           )}
 
           {/* ========================================================= */}
-          {/* VIEW 2: CREATE ACCOUNT (SIGN UP)                          */}
+          {/* VIEW 2: CREATE ACCOUNT (SIGN UP WITH STRONG PASSWORD)     */}
           {/* ========================================================= */}
           {mode === 'signup' && (
             <div className="space-y-4">
               
-              {/* Continue with Google on Signup */}
-              <button
-                id="signup-continue-with-google-btn"
-                type="button"
-                onClick={handleContinueWithGoogle}
-                disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-3 group"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>Sign Up with Google</span>
-              </button>
-
-              <div className="relative flex items-center justify-center">
-                <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-                <span className="bg-white dark:bg-slate-900 px-3 text-[11px] font-mono uppercase tracking-wider text-slate-400 shrink-0">
-                  Or register with email
-                </span>
-              </div>
-
               <form onSubmit={handleSignupSubmit} className="space-y-3.5">
                 {/* Full Name */}
                 <div>
@@ -517,39 +621,65 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
 
                 {/* Password & Confirm Password */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Password
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Create Strong Password
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword(!showSignupPassword)}
+                        className="text-[11px] text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        {showSignupPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        <span>{showSignupPassword ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
                         id="signup-password-input"
-                        type={showPassword ? 'text' : 'password'}
+                        type={showSignupPassword ? 'text' : 'password'}
                         value={signupPassword}
                         onChange={e => setSignupPassword(e.target.value)}
                         required
-                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                        placeholder="Must contain 8+ chars, capital, number, special"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 font-mono"
                       />
                     </div>
+
+                    {/* Live Strong Password Checklist & Strength Meter */}
+                    <PasswordStrengthIndicator password={signupPassword} showDetails={true} />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Confirm
+                      Confirm Password
                     </label>
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
                         id="signup-confirm-password-input"
-                        type={showPassword ? 'text' : 'password'}
+                        type={showSignupPassword ? 'text' : 'password'}
                         value={signupConfirmPassword}
                         onChange={e => setSignupConfirmPassword(e.target.value)}
                         required
-                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                        placeholder="Re-enter strong password"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 font-mono"
                       />
                     </div>
+                    {signupConfirmPassword && signupPassword !== signupConfirmPassword && (
+                      <p className="text-[11px] font-mono text-rose-500 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Passwords do not match
+                      </p>
+                    )}
+                    {signupConfirmPassword && signupPassword === signupConfirmPassword && (
+                      <p className="text-[11px] font-mono text-emerald-500 mt-1 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Passwords match
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -558,7 +688,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   id="signup-submit-btn"
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] mt-2"
+                  className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] mt-2 cursor-pointer"
                 >
                   <span>{isLoading ? 'Creating Enterprise Account...' : 'Create Account & Continue'}</span>
                   <ArrowRight className="w-4 h-4" />
@@ -576,7 +706,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       setMode('login');
                       setAuthError(null);
                     }}
-                    className="font-bold text-cyan-600 dark:text-cyan-400 hover:underline ml-1"
+                    className="font-bold text-cyan-600 dark:text-cyan-400 hover:underline ml-1 cursor-pointer"
                   >
                     Log In
                   </button>
@@ -586,31 +716,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           )}
 
           {/* ========================================================= */}
-          {/* VIEW 3: FORGOT PASSWORD                                   */}
+          {/* VIEW 3: FORGOT PASSWORD WITH EMAIL OTP                    */}
           {/* ========================================================= */}
           {mode === 'forgot-password' && (
             <div className="space-y-4">
-              {resetSuccessMessage ? (
-                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs space-y-3">
-                  <div className="flex items-start gap-2.5">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                    <p className="leading-relaxed">{resetSuccessMessage}</p>
+              
+              {/* STEP 1: REQUEST OTP TO USER EMAIL */}
+              {forgotStep === 'request-otp' && (
+                <form onSubmit={handleRequestOtp} className="space-y-4">
+                  <div className="p-3.5 rounded-2xl bg-cyan-500/10 dark:bg-cyan-950/30 border border-cyan-500/20 text-slate-700 dark:text-slate-300 text-xs space-y-1">
+                    <p className="font-semibold text-cyan-800 dark:text-cyan-300 flex items-center gap-1.5">
+                      <Mail className="w-4 h-4 text-cyan-500" />
+                      <span>One-Time Password (OTP) Verification</span>
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Enter the email address you gave for login. A secure 6-digit one-time password will be dispatched to your inbox.
+                    </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setMode('login');
-                      setResetSuccessMessage(null);
-                    }}
-                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors text-center"
-                  >
-                    Return to Login
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleForgotSubmit} className="space-y-4">
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                      Enter Account Email
+                      Account Email Address
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -627,13 +753,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   </div>
 
                   <button
-                    id="forgot-submit-btn"
+                    id="send-otp-btn"
                     type="submit"
                     disabled={isLoading}
-                    className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>{isLoading ? 'Dispatching Token...' : 'Send Recovery Link'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>{isLoading ? 'Dispatching OTP to Email...' : 'Send OTP to Email'}</span>
+                    <Send className="w-4 h-4" />
                   </button>
 
                   <div className="text-center pt-2">
@@ -643,13 +769,225 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         setMode('login');
                         setAuthError(null);
                       }}
-                      className="text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
                     >
-                      ← Back to Login
+                      ← Return to Login
                     </button>
                   </div>
                 </form>
               )}
+
+              {/* STEP 2: ENTER & VERIFY OTP */}
+              {forgotStep === 'verify-otp' && (
+                <form onSubmit={handleVerifyOtp} className="space-y-4">
+                  {/* Interactive Simulated Email Inbox Dispatch Toast */}
+                  {dispatchedOtp && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-xs space-y-2 animate-in fade-in duration-300">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>OTP Dispatched to {dispatchedOtp.email}</span>
+                        </div>
+                        <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                          Valid 10 mins
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between bg-white dark:bg-slate-900/90 p-2.5 rounded-xl border border-emerald-500/30">
+                        <div>
+                          <span className="text-[10px] font-mono text-slate-400 block">Simulated Email Inbox OTP:</span>
+                          <span className="text-base font-mono font-extrabold tracking-widest text-emerald-600 dark:text-emerald-400">
+                            {dispatchedOtp.otp}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAutoFillOtp}
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px] transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                          title="Click to auto-fill this code directly into the input"
+                        >
+                          {copiedOtp ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedOtp ? 'Filled!' : 'Auto-Fill OTP'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Enter 6-Digit One-Time Password (OTP)
+                    </label>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                      <input
+                        id="otp-input"
+                        type="text"
+                        maxLength={6}
+                        value={otpValue}
+                        onChange={e => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                        required
+                        placeholder="••••••"
+                        className="w-full pl-10 pr-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-lg font-mono tracking-widest text-center text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Check your email inbox or use the simulated dispatch code above.
+                    </p>
+                  </div>
+
+                  <button
+                    id="verify-otp-btn"
+                    type="submit"
+                    disabled={isLoading || otpValue.length !== 6}
+                    className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>{isLoading ? 'Verifying OTP Code...' : 'Verify OTP & Set New Password'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  {/* Resend OTP & Back Controls */}
+                  <div className="flex items-center justify-between pt-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep('request-otp')}
+                      className="text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                    >
+                      ← Change Email
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={resendCooldown > 0 || isLoading}
+                      onClick={handleResendOtp}
+                      className={`font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                        resendCooldown > 0 
+                          ? 'text-slate-400 cursor-not-allowed' 
+                          : 'text-cyan-600 dark:text-cyan-400 hover:underline'
+                      }`}
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                      <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend OTP'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* STEP 3: CREATE NEW STRONG PASSWORD */}
+              {forgotStep === 'new-password' && (
+                <form onSubmit={handleSetNewPassword} className="space-y-4">
+                  <div className="p-3 rounded-xl bg-cyan-500/10 dark:bg-cyan-950/30 border border-cyan-500/30 text-xs text-slate-700 dark:text-slate-300">
+                    <span className="font-semibold text-cyan-800 dark:text-cyan-300">Identity Verified via OTP.</span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Create a new strong password for account <span className="font-bold text-slate-800 dark:text-slate-200">{forgotEmail}</span>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        New Strong Password
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="text-[11px] text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        <span>{showNewPassword ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <input
+                        id="new-password-input"
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        required
+                        placeholder="Enter new strong password"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 font-mono"
+                      />
+                    </div>
+
+                    {/* Live Password Strength Indicator */}
+                    <PasswordStrengthIndicator password={newPassword} showDetails={true} />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <input
+                        id="confirm-new-password-input"
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={confirmNewPassword}
+                        onChange={e => setConfirmNewPassword(e.target.value)}
+                        required
+                        placeholder="Re-type new password"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 font-mono"
+                      />
+                    </div>
+                    {confirmNewPassword && newPassword !== confirmNewPassword && (
+                      <p className="text-[11px] font-mono text-rose-500 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Passwords do not match
+                      </p>
+                    )}
+                    {confirmNewPassword && newPassword === confirmNewPassword && (
+                      <p className="text-[11px] font-mono text-emerald-500 mt-1 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Passwords match
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    id="update-password-btn"
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>{isLoading ? 'Updating Password...' : 'Save New Password'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+
+              {/* STEP 4: SUCCESS CONFIRMATION */}
+              {forgotStep === 'success' && (
+                <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs space-y-4 animate-in fade-in duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-emerald-900 dark:text-white">
+                        Password Reset Successful!
+                      </h3>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                        Your account password has been updated and securely hashed.
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    You can now sign in immediately using your new password.
+                  </p>
+
+                  <button
+                    id="finish-reset-btn"
+                    type="button"
+                    onClick={handleFinishReset}
+                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <span>Proceed to Sign In</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
             </div>
           )}
 

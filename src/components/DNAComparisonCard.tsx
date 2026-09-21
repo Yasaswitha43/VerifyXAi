@@ -1,5 +1,5 @@
-import React from 'react';
-import { Dna, Fingerprint, Activity, ArrowRight, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Dna, Fingerprint, Activity, ArrowRight, CheckCircle2, AlertTriangle, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { SyntheticDocument } from '../types';
 
 interface DNAComparisonCardProps {
@@ -8,6 +8,8 @@ interface DNAComparisonCardProps {
 }
 
 export const DNAComparisonCard: React.FC<DNAComparisonCardProps> = ({ docA, docB }) => {
+  const [geneFilter, setGeneFilter] = useState<'all' | 'clean' | 'suspicious' | 'tampered'>('all');
+
   const axesLabels = [
     'Typography',
     'Layout Grid',
@@ -187,38 +189,115 @@ export const DNAComparisonCard: React.FC<DNAComparisonCardProps> = ({ docA, docB
         </div>
 
         {/* Gene Differential Table */}
-        <div className="md:col-span-6 space-y-2.5">
-          <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            Genomic Gene Discrepancies
-          </h4>
+        <div className="md:col-span-6 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Genomic Gene Tri-Color Classification
+            </h4>
+            
+            {/* Filter pills */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-mono">
+              <button
+                onClick={() => setGeneFilter('all')}
+                className={`px-2 py-0.5 rounded-md transition-colors ${
+                  geneFilter === 'all' 
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold shadow-xs' 
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                All (8)
+              </button>
+              <button
+                onClick={() => setGeneFilter('clean')}
+                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                  geneFilter === 'clean' 
+                    ? 'bg-emerald-500 text-white font-bold shadow-xs' 
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>Clean</span>
+              </button>
+              <button
+                onClick={() => setGeneFilter('suspicious')}
+                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                  geneFilter === 'suspicious' 
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-xs' 
+                    : 'text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span>Suspicious</span>
+              </button>
+              <button
+                onClick={() => setGeneFilter('tampered')}
+                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                  geneFilter === 'tampered' 
+                    ? 'bg-rose-500 text-white font-bold shadow-xs' 
+                    : 'text-rose-600 dark:text-rose-400'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span>Tampered</span>
+              </button>
+            </div>
+          </div>
 
           <div className="space-y-1.5 text-xs">
-            {axesLabels.map((label, idx) => {
-              const valA = docA.dna.radialFeatures[idx];
-              const valB = docB.dna.radialFeatures[idx];
-              const diff = Math.abs(valA - valB);
-              const isHigh = diff >= 25;
+            {axesLabels
+              .map((label, idx) => {
+                const valA = docA.dna.radialFeatures[idx];
+                const valB = docB.dna.radialFeatures[idx];
+                const diff = Math.abs(valA - valB);
+                const category: 'clean' | 'suspicious' | 'tampered' = 
+                  diff >= 25 ? 'tampered' : diff >= 10 ? 'suspicious' : 'clean';
+                return { label, idx, valA, valB, diff, category };
+              })
+              .filter(item => geneFilter === 'all' || item.category === geneFilter)
+              .map(item => {
+                const isTampered = item.category === 'tampered';
+                const isSuspicious = item.category === 'suspicious';
+                const isClean = item.category === 'clean';
 
-              return (
-                <div 
-                  key={idx} 
-                  className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/60"
-                >
-                  <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span>
-                  
-                  <div className="flex items-center gap-3 font-mono">
-                    <span className="text-cyan-600 dark:text-cyan-400">{valA}%</span>
-                    <ArrowRight className="w-3 h-3 text-slate-400" />
-                    <span className="text-rose-500">{valB}%</span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      isHigh ? 'bg-rose-500/20 text-rose-500' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
-                    }`}>
-                      &Delta; {diff}%
-                    </span>
+                return (
+                  <div 
+                    key={item.idx} 
+                    className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                      isTampered
+                        ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-500/30'
+                        : isSuspicious
+                        ? 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-500/30'
+                        : 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-500/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isTampered && <ShieldAlert className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+                      {isSuspicious && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                      {isClean && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{item.label}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2.5 font-mono">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">{item.valA}%</span>
+                      <ArrowRight className="w-3 h-3 text-slate-400" />
+                      <span className={`text-[11px] font-bold ${
+                        isTampered ? 'text-rose-500' : isSuspicious ? 'text-amber-500' : 'text-emerald-500'
+                      }`}>
+                        {item.valB}%
+                      </span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                        isTampered 
+                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30' 
+                          : isSuspicious 
+                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30' 
+                          : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      }`}>
+                        {isTampered ? `Tampered Δ${item.diff}%` : isSuspicious ? `Suspicious Δ${item.diff}%` : `Clean Δ${item.diff}%`}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
 

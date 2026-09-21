@@ -545,6 +545,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({ document: initialDoc, 
           <TamperHeatmapViewer 
             imageSrc={document.thumbnailUrl} 
             anomalies={document.anomalies} 
+            riskScore={document.riskScore}
           />
         </div>
       )}

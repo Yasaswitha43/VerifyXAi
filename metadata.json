@@ -1,6 +1,6 @@
 {
   "name": "VERIFYX AI - Forensic Document Intelligence",
   "description": "Analyze documents, detect potential tampering, identify anomalies, and understand verification risk with AI-powered forensic analysis.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

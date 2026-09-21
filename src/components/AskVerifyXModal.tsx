@@ -10,6 +10,7 @@ import {
   ArrowRight,
   ShieldAlert,
   FileSearch,
+  Dna,
   GitCompare,
   FileText,
   Bot
@@ -153,12 +154,12 @@ export const AskVerifyXModal: React.FC<AskVerifyXModalProps> = ({
       }
     } else if (lower.includes("show suspicious regions") || lower.includes("suspicious") || lower.includes("tamper") || lower.includes("heatmap")) {
       replyText = `Suspicious regions identified in "${docName}":\n1. Ending Balance Box (x: 58%, y: 72%): Font baseline jitter of 1.4px indicates manual digit replacement.\n2. Authorization Seal (x: 82%, y: 88%): High Error Level Analysis (ELA) thermal gradient indicating spliced imagery.`;
-    } else if (lower.includes("compare documents") || lower.includes("difference map") || lower.includes("compare")) {
-      replyText = "Opening the Document A vs B Difference Map engine. This lets you align two variants, compute pixel differential heatmaps, and track text deletions or additions.";
+    } else if (lower.includes("compare documents") || lower.includes("difference map") || lower.includes("compare") || lower.includes("document dna")) {
+      replyText = "Opening Document DNA engine. This lets you inspect dual-specimen genomic profiles, differential heatmaps, and tri-color highlighting of verified clean, suspicious, and tampered data.";
       actionPayload = {
-        label: "Open Document Comparison",
+        label: "Open Document DNA",
         route: 'compare',
-        icon: GitCompare
+        icon: Dna
       };
       if (onNavigate) {
         setTimeout(() => onNavigate('compare'), 1200);

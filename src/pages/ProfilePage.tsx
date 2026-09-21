@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, 
   LogOut, 
@@ -6,17 +6,50 @@ import {
   ShieldCheck, 
   Building, 
   CheckCircle2, 
-  FileCheck 
+  FileCheck,
+  Globe,
+  Check
 } from 'lucide-react';
 import { PageRoute, UserProfile } from '../types';
+import { SUPPORTED_LANGUAGES } from '../data/mockData';
 
 interface ProfilePageProps {
   user: UserProfile;
   onNavigate: (page: PageRoute) => void;
   onLogout: () => void;
+  onUpdateUser?: (updated: Partial<UserProfile>) => void;
 }
 
-export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLogout }) => {
+export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLogout, onUpdateUser }) => {
+  const [selectedLang, setSelectedLang] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('verifyx_language');
+      if (saved) return saved;
+    } catch (e) {}
+    return user.language || 'en';
+  });
+
+  const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+
+  const handleLanguageChange = (langCode: string) => {
+    setSelectedLang(langCode);
+    try {
+      localStorage.setItem('verifyx_language', langCode);
+    } catch (e) {}
+
+    if (onUpdateUser) {
+      onUpdateUser({ language: langCode });
+    }
+
+    const langObj = SUPPORTED_LANGUAGES.find(l => l.code === langCode);
+    setNotificationMsg(`Interface language updated to ${langObj?.name || langCode} (${langObj?.nativeName || ''})`);
+    setTimeout(() => {
+      setNotificationMsg(null);
+    }, 3000);
+  };
+
+  const activeLanguage = SUPPORTED_LANGUAGES.find(l => l.code === selectedLang) || SUPPORTED_LANGUAGES[0];
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-left">
       
@@ -43,7 +76,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
         </p>
       </div>
 
-      {/* Clean Profile Card: Avatar, Name, Email, Role, and Logout */}
+      {/* Clean Profile Card: Avatar, Name, Email, Role, Language Option, and Logout */}
       <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
         
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
@@ -97,6 +130,70 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
               {user.scansPerformed || 248} Documents Verified
             </p>
           </div>
+        </div>
+
+        {/* Language Option in Profile Settings */}
+        <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                Language Option
+              </h3>
+            </div>
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+              Current: <strong className="text-cyan-600 dark:text-cyan-400 font-semibold">{activeLanguage.flag} {activeLanguage.name} ({activeLanguage.nativeName})</strong>
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Choose your preferred language for forensic explanations, audit logs, and interface displays based on your preference.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+            {SUPPORTED_LANGUAGES.map((lang) => {
+              const isSelected = selectedLang === lang.code;
+              return (
+                <button
+                  key={lang.code}
+                  type="button"
+                  id={`profile-lang-${lang.code}`}
+                  onClick={() => handleLanguageChange(lang.code)}
+                  className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
+                    isSelected
+                      ? 'bg-cyan-50/90 dark:bg-cyan-950/50 border-cyan-500 dark:border-cyan-500/70 shadow-xs ring-1 ring-cyan-500/40'
+                      : 'bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-xl shrink-0" role="img" aria-label={lang.name}>
+                      {lang.flag}
+                    </span>
+                    <div className="truncate">
+                      <p className={`text-xs font-semibold truncate ${isSelected ? 'text-cyan-900 dark:text-cyan-100' : 'text-slate-900 dark:text-slate-200'}`}>
+                        {lang.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {lang.nativeName}
+                      </p>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500 text-slate-950">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {notificationMsg && (
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+              <span>{notificationMsg}</span>
+            </div>
+          )}
         </div>
 
         {/* Logout Action */}

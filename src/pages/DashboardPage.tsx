@@ -2,6 +2,7 @@ import React from 'react';
 import { 
   FileSearch, 
   GitCompare, 
+  Dna,
   ShieldAlert, 
   ShieldCheck, 
   AlertTriangle, 
@@ -125,23 +126,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           <div className="space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="w-11 h-11 rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center border border-violet-500/20 group-hover:scale-105 transition-transform">
-                <GitCompare className="w-5 h-5" />
+                <Dna className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                Diff Engine
+                DNA Engine
               </span>
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
-                Document Comparison
+                Document DNA
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-                Side-by-side differential inspection between Document A and B.
+                Genomic biometrics and tri-color differential analysis of clean, suspicious, and tampered data.
               </p>
             </div>
           </div>
           <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs font-semibold text-violet-600 dark:text-violet-400">
-            <span>Compare Specimens</span>
+            <span>Inspect Document DNA</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>

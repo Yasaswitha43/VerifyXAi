@@ -107,6 +107,14 @@ export interface NotificationItem {
   type: 'warning' | 'info' | 'success';
 }
 
+export interface LanguageOption {
+  code: string;
+  name: string;
+  nativeName: string;
+  flag: string;
+  region: string;
+}
+
 export interface UserProfile {
   name: string;
   email: string;
@@ -118,4 +126,5 @@ export interface UserProfile {
   lastLogin: string;
   scansPerformed: number;
   clearanceLevel: string;
+  language?: string;
 }

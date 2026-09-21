@@ -88,6 +88,19 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleUpdateUser = (updated: Partial<UserProfile>) => {
+    setCurrentUser(prev => {
+      const base = prev || CURRENT_USER;
+      const nextUser = { ...base, ...updated };
+      try {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
+      } catch (e) {
+        console.error('Error saving updated user session', e);
+      }
+      return nextUser;
+    });
+  };
+
   const handleAnalysisComplete = (doc: SyntheticDocument) => {
     setSelectedDocument(doc);
     setCurrentPage('results');
@@ -120,7 +133,6 @@ export default function App() {
               onLoginSuccess={handleLoginSuccess}
               onCancel={() => handleNavigate(currentUser ? 'dashboard' : 'landing')}
               initialMode="login"
-              existingUser={currentUser}
             />
           )}
 
@@ -129,7 +141,6 @@ export default function App() {
               onLoginSuccess={handleLoginSuccess}
               onCancel={() => handleNavigate(currentUser ? 'dashboard' : 'landing')}
               initialMode="signup"
-              existingUser={currentUser}
             />
           )}
 
@@ -187,6 +198,7 @@ export default function App() {
               user={currentUser || CURRENT_USER}
               onNavigate={handleNavigate}
               onLogout={handleLogout}
+              onUpdateUser={handleUpdateUser}
             />
           )}
         </main>

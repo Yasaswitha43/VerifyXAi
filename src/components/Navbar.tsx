@@ -7,6 +7,7 @@ import {
   LogOut, 
   Settings, 
   FileSearch, 
+  Dna,
   GitCompare, 
   History, 
   FileText, 
@@ -76,11 +77,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     { label: 'Security', page: 'landing' as PageRoute, hash: '#security' }
   ];
 
-  // Authenticated navigation links (Dashboard, Analysis, Document Comparison, History, Reports)
+  // Authenticated navigation links (Dashboard, Analysis, Document DNA, History, Reports)
   const authNavLinks = [
     { label: 'Dashboard', page: 'dashboard' as PageRoute, icon: LayoutDashboard },
     { label: 'Analysis', page: 'analyze' as PageRoute, icon: FileSearch },
-    { label: 'Document Comparison', page: 'compare' as PageRoute, icon: GitCompare },
+    { label: 'Document DNA', page: 'compare' as PageRoute, icon: Dna },
     { label: 'History', page: 'history' as PageRoute, icon: History },
     { label: 'Reports', page: 'reports' as PageRoute, icon: FileText }
   ];
