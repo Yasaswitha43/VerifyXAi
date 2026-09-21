@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PageRoute, SyntheticDocument, UserProfile } from './types';
 import { ThemeProvider } from './context/ThemeContext';
+import { LanguageProvider } from './i18n';
 import { Navbar } from './components/Navbar';
 import { AskVerifyXModal } from './components/AskVerifyXModal';
 import { AnimatedSecurityBackground } from './components/AnimatedSecurityBackground';
@@ -108,7 +109,8 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#060e24] text-slate-900 dark:text-slate-100 transition-colors duration-300 relative selection:bg-cyan-500/30 selection:text-cyan-200">
+      <LanguageProvider>
+        <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#060e24] text-slate-900 dark:text-slate-100 transition-colors duration-300 relative selection:bg-cyan-500/30 selection:text-cyan-200">
         
         {/* Reusable Global 3D Animated Cybersecurity Background (Runs smoothly across all pages) */}
         <AnimatedSecurityBackground />
@@ -237,7 +239,8 @@ export default function App() {
           onNavigate={handleNavigate}
         />
 
-      </div>
+        </div>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

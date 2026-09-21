@@ -18,6 +18,7 @@ import { PageRoute } from '../types';
 import { DifferenceMapViewer } from '../components/DifferenceMapViewer';
 import { DNAComparisonCard } from '../components/DNAComparisonCard';
 import { SAMPLE_DOCUMENTS } from '../data/mockData';
+import { useLanguage } from '../i18n';
 
 interface ComparePageProps {
   onNavigate: (page: PageRoute) => void;
@@ -37,7 +38,9 @@ interface ForensicDataItem {
 }
 
 export const ComparePage: React.FC<ComparePageProps> = ({ onNavigate }) => {
+  const { t, isRTL, formatNumber } = useLanguage();
   const [docAIndex, setDocAIndex] = useState(0);
+
   const [docBIndex, setDocBIndex] = useState(1);
   const [activeDataFilter, setActiveDataFilter] = useState<DataStatus>('all');
 
@@ -172,7 +175,7 @@ export const ComparePage: React.FC<ComparePageProps> = ({ onNavigate }) => {
     : forensicDataItems.filter(i => i.category === activeDataFilter);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-left">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
       {/* TOP-LEFT Navigation: Back to Dashboard */}
       <div>
@@ -180,10 +183,10 @@ export const ComparePage: React.FC<ComparePageProps> = ({ onNavigate }) => {
           id="back-to-dashboard-btn"
           onClick={() => onNavigate('dashboard')}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 transition-all shadow-xs group cursor-pointer"
-          title="Return to Dashboard"
+          title={t('backToDashboard')}
         >
-          <ArrowLeft className="w-4 h-4 text-cyan-500 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Dashboard</span>
+          <ArrowLeft className={`w-4 h-4 text-cyan-500 transition-transform ${isRTL ? 'group-hover:translate-x-0.5 rotate-180' : 'group-hover:-translate-x-0.5'}`} />
+          <span>{t('dashboard')}</span>
         </button>
       </div>
 
@@ -196,10 +199,10 @@ export const ComparePage: React.FC<ComparePageProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-900 dark:text-white tracking-tight">
-                Document DNA
+                {t('documentDNA')}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                Dual-specimen forensic genome inspection with tri-color data classification
+                {t('dualSpecimenDesc')}
               </p>
             </div>
           </div>

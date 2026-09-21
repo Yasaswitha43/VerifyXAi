@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { PageRoute, SyntheticDocument, DocumentType } from '../types';
 import { SAMPLE_DOCUMENTS } from '../data/mockData';
+import { useLanguage } from '../i18n';
 
 interface AnalyzePageProps {
   onAnalysisComplete: (doc: SyntheticDocument) => void;
@@ -27,6 +28,8 @@ interface AnalyzePageProps {
 }
 
 export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, onNavigate }) => {
+  const { t, isRTL, formatNumber } = useLanguage();
+
   // Mode Selection: Single Document Analysis vs Document Comparison
   const [activeMode, setActiveMode] = useState<'single' | 'compare'>('single');
 
@@ -234,7 +237,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-left relative z-10">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 relative z-10">
       
       {/* Top Header & Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60 dark:border-slate-800/60">
@@ -243,17 +246,17 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
             id="back-to-dashboard-btn"
             onClick={() => onNavigate('dashboard')}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-white/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 transition-all shadow-xs group mb-2 cursor-pointer"
-            title="Return to Dashboard"
+            title={t('backToDashboard')}
           >
-            <ArrowLeft className="w-4 h-4 text-cyan-500 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Dashboard</span>
+            <ArrowLeft className={`w-4 h-4 text-cyan-500 transition-transform ${isRTL ? 'group-hover:translate-x-0.5 rotate-180' : 'group-hover:-translate-x-0.5'}`} />
+            <span>{t('dashboard')}</span>
           </button>
           
           <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-900 dark:text-white tracking-tight">
-            Document Ingestion & Forensic Intake
+            {t('documentIngestion')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-            Upload single documents for multi-layer tampering analysis, or switch to Document DNA mode.
+            {t('documentIngestionDesc')}
           </p>
         </div>
 
@@ -269,7 +272,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Single Document</span>
+            <span>{t('singleDocument')}</span>
           </button>
           <button
             id="mode-compare-btn"
@@ -284,7 +287,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
             }`}
           >
             <Dna className="w-3.5 h-3.5" />
-            <span>Document DNA</span>
+            <span>{t('documentDNA')}</span>
           </button>
         </div>
       </div>
@@ -299,10 +302,10 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
           <div className="space-y-2 max-w-lg mx-auto">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-xs font-semibold text-cyan-600 dark:text-cyan-400">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>FORENSIC PIPELINE ENGAGED</span>
+              <span>{t('forensicPipelineEngaged')}</span>
             </div>
             <h3 className="text-xl font-bold font-display text-slate-900 dark:text-white">
-              Analyzing &ldquo;{selectedFileName}&rdquo;
+              {t('analyzingDoc', { name: selectedFileName })}
             </h3>
             <p className="text-sm font-mono text-cyan-600 dark:text-cyan-400 min-h-[20px] transition-all">
               {currentStage}
@@ -318,8 +321,8 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
               />
             </div>
             <div className="flex justify-between text-xs font-mono text-slate-500 dark:text-slate-400">
-              <span>Stage: {Math.min(Math.floor((progress / 100) * stages.length) + 1, stages.length)} of {stages.length}</span>
-              <span className="font-bold text-cyan-500">{progress}%</span>
+              <span>{t('stageOf', { current: formatNumber(Math.min(Math.floor((progress / 100) * stages.length) + 1, stages.length)), total: formatNumber(stages.length) })}</span>
+              <span className="font-bold text-cyan-500">{formatNumber(progress)}%</span>
             </div>
           </div>
         </div>
@@ -334,10 +337,10 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-xs flex items-center justify-center font-mono font-bold">1</span>
-                <span>Document Upload & Preview</span>
+                <span>{t('documentUploadPreview')}</span>
               </h2>
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                Formats: JPG, JPEG, PNG, PDF (Max 25MB)
+                {t('formatsAccepted')}
               </span>
             </div>
 
@@ -373,10 +376,10 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
                   </div>
                   <div>
                     <p className="text-base font-semibold text-slate-900 dark:text-white">
-                      Drag &amp; drop document here, or <span className="text-cyan-600 dark:text-cyan-400 underline decoration-cyan-500/40">browse files</span>
+                      {t('dragAndDropPrompt')} <span className="text-cyan-600 dark:text-cyan-400 underline decoration-cyan-500/40">{t('browseFiles')}</span>
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Accepts JPG, JPEG, PNG, or PDF up to 25MB
+                      {t('formatsAccepted')}
                     </p>
                   </div>
                   
@@ -396,7 +399,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                       <Eye className="w-3.5 h-3.5 text-cyan-500" />
-                      File Preview
+                      {t('filePreview')}
                     </span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 font-semibold">
                       {fileFormat}
@@ -420,17 +423,17 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
                   {/* Metadata Specs */}
                   <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
                     <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                      <span>File Size:</span>
+                      <span>{t('fileSize')}:</span>
                       <span className="font-semibold font-mono text-slate-900 dark:text-slate-200">{fileSizeText}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                      <span>Integrity Status:</span>
+                      <span>{t('integrityStatus')}:</span>
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Validated
+                        <CheckCircle2 className="w-3 h-3" /> {t('verified')}
                       </span>
                     </div>
                     <div className="flex justify-between py-1">
-                      <span>SHA-256 Digest:</span>
+                      <span>{t('shaDigest')}:</span>
                       <span className="font-mono text-[10px] text-cyan-600 dark:text-cyan-400 truncate max-w-[160px]">
                         {selectedPreset.metadata.hashSha256.substring(0, 16)}...
                       </span>
@@ -439,7 +442,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
                 </div>
 
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500">
-                  Ready for multi-layer forensic extraction
+                  {t('readyForExtraction')}
                 </div>
               </div>
 
@@ -448,8 +451,8 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
             {/* Quick Preset Specimens - including Aadhaar, PAN, College ID, Driving Licence, etc. */}
             <div className="pt-3">
               <p className="text-xs text-slate-600 dark:text-slate-400 mb-2.5 font-semibold flex items-center justify-between">
-                <span>Or load synthetic demo specimen:</span>
-                <span className="text-[11px] text-slate-400 font-normal">Click any specimen to auto-populate</span>
+                <span>{t('loadSyntheticSpecimen')}</span>
+                <span className="text-[11px] text-slate-400 font-normal">{t('clickToPopulate')}</span>
               </p>
               
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
@@ -471,11 +474,11 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
                             {doc.format}
                           </span>
                           {doc.riskScore >= 70 ? (
-                            <span className="text-[9px] font-bold px-1 rounded bg-rose-500/20 text-rose-500">High Risk</span>
+                            <span className="text-[9px] font-bold px-1 rounded bg-rose-500/20 text-rose-500">{t('critical')}</span>
                           ) : doc.riskScore >= 40 ? (
-                            <span className="text-[9px] font-bold px-1 rounded bg-amber-500/20 text-amber-500">Moderate</span>
+                            <span className="text-[9px] font-bold px-1 rounded bg-amber-500/20 text-amber-500">{t('suspicious')}</span>
                           ) : (
-                            <span className="text-[9px] font-bold px-1 rounded bg-emerald-500/20 text-emerald-500">Clean</span>
+                            <span className="text-[9px] font-bold px-1 rounded bg-emerald-500/20 text-emerald-500">{t('clean')}</span>
                           )}
                         </div>
                         <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
@@ -501,7 +504,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
           <div className="space-y-4 pt-2">
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-xs flex items-center justify-center font-mono font-bold">2</span>
-              <span>Document Type Detection &amp; Classification</span>
+              <span>{t('docTypeClassification')}</span>
             </h2>
 
             <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md space-y-4">
@@ -512,9 +515,9 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">AI Classification:</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{t('aiClassification')}</span>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-semibold font-mono">
-                        {detectionConfidence}% Confidence
+                        {t('confidenceLevel', { confidence: formatNumber(detectionConfidence) })}
                       </span>
                     </div>
                     <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
@@ -526,7 +529,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
                 {/* Manual Override Dropdown */}
                 <div className="flex items-center gap-2.5">
                   <label htmlFor="doc-type-select" className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Confirm / Change Type:
+                    {t('confirmChangeType')}
                   </label>
                   <select
                     id="doc-type-select"
@@ -559,7 +562,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
           <div className="space-y-4 pt-2">
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-xs flex items-center justify-center font-mono font-bold">3</span>
-              <span>Forensic Analysis Depth</span>
+              <span>{t('forensicDepth')}</span>
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -576,15 +579,15 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Standard Scan
+                    {t('standardScan')}
                   </h3>
                   {analysisType === 'standard' && <Check className="w-4 h-4 text-cyan-500" />}
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Fast structural validation, OCR extraction, MIME metadata integrity, and basic resolution check.
+                  {t('standardScanDesc')}
                 </p>
                 <div className="mt-3 text-[11px] font-mono text-slate-400">
-                  Speed: ~1.2s • 16-point check
+                  {t('scanSpeed', { speed: '~1.2s', points: formatNumber(16) })}
                 </div>
               </div>
 
@@ -600,15 +603,15 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Deep Inspection
+                    {t('deepInspection')}
                   </h3>
                   {analysisType === 'deep' && <Check className="w-4 h-4 text-cyan-500" />}
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Error Level Analysis (ELA), micro-typography kerning, font weight consistency, and pixel noise entropy.
+                  {t('deepInspectionDesc')}
                 </p>
                 <div className="mt-3 text-[11px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
-                  Speed: ~2.8s • 32-point check
+                  {t('scanSpeed', { speed: '~2.8s', points: formatNumber(32) })}
                 </div>
               </div>
 
@@ -624,16 +627,16 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <span>Full Forensic Audit</span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-mono uppercase">Recommended</span>
+                    <span>{t('fullForensicAudit')}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-mono uppercase">{t('recommended')}</span>
                   </h3>
                   {analysisType === 'full' && <Check className="w-4 h-4 text-cyan-500" />}
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Complete 64-point Document DNA, generative AI diffusion detection, cross-field checksums, and audit certificate.
+                  {t('fullForensicAuditDesc')}
                 </p>
                 <div className="mt-3 text-[11px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
-                  Speed: ~4.5s • 64-point vector
+                  {t('scanSpeed', { speed: '~4.5s', points: formatNumber(64) })}
                 </div>
               </div>
 
@@ -643,7 +646,7 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
           {/* Execution Bar */}
           <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800">
             <div className="text-xs text-slate-600 dark:text-slate-400">
-              Target: <span className="font-bold text-slate-900 dark:text-white font-mono">{selectedFileName}</span> • Classification: <span className="font-semibold text-cyan-600 dark:text-cyan-400">{detectedType}</span> ({analysisType} mode)
+              {t('target')} <span className="font-bold text-slate-900 dark:text-white font-mono">{selectedFileName}</span> • {t('classification')} <span className="font-semibold text-cyan-600 dark:text-cyan-400">{detectedType}</span> ({analysisType} {t('mode')})
             </div>
 
             <button
@@ -651,8 +654,8 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
               onClick={handleStartAnalysis}
               className="px-6 py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/35 transition-all flex items-center justify-center gap-2 cursor-pointer group"
             >
-              <span>Engage Forensic Engine</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              <span>{t('engageForensicEngine')}</span>
+              <ArrowRight className={`w-4 h-4 transition-transform ${isRTL ? 'group-hover:-translate-x-0.5 rotate-180' : 'group-hover:translate-x-0.5'}`} />
             </button>
           </div>
 
@@ -662,3 +665,4 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ onAnalysisComplete, on
     </div>
   );
 };
+

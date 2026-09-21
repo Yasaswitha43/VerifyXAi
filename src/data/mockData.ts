@@ -1,19 +1,7 @@
-import { SyntheticDocument, UserProfile, NotificationItem, LanguageOption } from '../types';
+import { SyntheticDocument, UserProfile, NotificationItem } from '../types';
+import { SUPPORTED_LANGUAGES } from '../i18n';
 
-export const SUPPORTED_LANGUAGES: LanguageOption[] = [
-  { code: 'en', name: 'English (US)', nativeName: 'English (US)', flag: '🇺🇸', region: 'Default / International' },
-  { code: 'en-GB', name: 'English (UK)', nativeName: 'English (UK)', flag: '🇬🇧', region: 'United Kingdom / Europe' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', region: 'Spain & Latin America' },
-  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷', region: 'France & Canada' },
-  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪', region: 'Germany / DACH' },
-  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵', region: 'Japan' },
-  { code: 'zh', name: 'Chinese (Simplified)', nativeName: '简体中文', flag: '🇨🇳', region: 'East Asia' },
-  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳', region: 'India' },
-  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦', region: 'Middle East' },
-  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷', region: 'Brazil & Portugal' },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', region: 'Italy' },
-  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷', region: 'South Korea' }
-];
+export { SUPPORTED_LANGUAGES };
 
 export const CURRENT_USER: UserProfile = {
   name: 'Dr. Evelyn Vance',

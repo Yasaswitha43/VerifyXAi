@@ -15,9 +15,12 @@ import {
   ArrowLeft,
   ChevronDown,
   Menu,
-  X
+  X,
+  Globe,
+  Check
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../i18n';
 import { PageRoute, UserProfile, NotificationItem } from '../types';
 import { CURRENT_USER } from '../data/mockData';
 
@@ -41,9 +44,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const navigate = onNavigate || setCurrentPage || (() => {});
   const { theme, toggleTheme } = useTheme();
+  const { t, language, setLanguage, supportedLanguages, activeLanguage, isRTL } = useLanguage();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLangMenu, setShowLangMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const langMenuRef = useRef<HTMLDivElement>(null);
 
   // Authenticated state check
   const isAuthenticated = currentPage !== 'landing' && currentPage !== 'login' && currentPage !== 'signup' && !!currentUser;
@@ -52,15 +58,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Is this page an inner page after dashboard?
   const isAfterDashboard = isAuthenticated && currentPage !== 'dashboard';
 
-  // Close profile dropdown on outside click or Escape
+  // Close profile and language dropdowns on outside click or Escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+        setShowLangMenu(false);
+      }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowUserMenu(false);
+      if (e.key === 'Escape') {
+        setShowUserMenu(false);
+        setShowLangMenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
@@ -72,18 +84,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Landing marketing links
   const landingNavLinks = [
-    { label: 'How It Works', page: 'landing' as PageRoute, hash: '#how-it-works' },
-    { label: 'Features', page: 'landing' as PageRoute, hash: '#features' },
-    { label: 'Security', page: 'landing' as PageRoute, hash: '#security' }
+    { label: t('howItWorks'), page: 'landing' as PageRoute, hash: '#how-it-works' },
+    { label: t('features'), page: 'landing' as PageRoute, hash: '#features' },
+    { label: t('security'), page: 'landing' as PageRoute, hash: '#security' }
   ];
 
   // Authenticated navigation links (Dashboard, Analysis, Document DNA, History, Reports)
   const authNavLinks = [
-    { label: 'Dashboard', page: 'dashboard' as PageRoute, icon: LayoutDashboard },
-    { label: 'Analysis', page: 'analyze' as PageRoute, icon: FileSearch },
-    { label: 'Document DNA', page: 'compare' as PageRoute, icon: Dna },
-    { label: 'History', page: 'history' as PageRoute, icon: History },
-    { label: 'Reports', page: 'reports' as PageRoute, icon: FileText }
+    { label: t('dashboard'), page: 'dashboard' as PageRoute, icon: LayoutDashboard },
+    { label: t('analysis'), page: 'analyze' as PageRoute, icon: FileSearch },
+    { label: t('documentDNA'), page: 'compare' as PageRoute, icon: Dna },
+    { label: t('history'), page: 'history' as PageRoute, icon: History },
+    { label: t('reports'), page: 'reports' as PageRoute, icon: FileText }
   ];
 
   const handleLandingNavClick = (page: PageRoute, hash?: string) => {
@@ -136,10 +148,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="navbar-back-to-dashboard-btn"
                 onClick={() => navigate('dashboard')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all shadow-sm group"
-                title="Return to Dashboard"
+                title={t('backToDashboard')}
               >
-                <ArrowLeft className="w-4 h-4 text-cyan-500 group-hover:-translate-x-0.5 transition-transform" />
-                <span>Dashboard</span>
+                <ArrowLeft className={`w-4 h-4 text-cyan-500 transition-transform ${isRTL ? 'group-hover:translate-x-0.5 rotate-180' : 'group-hover:-translate-x-0.5'}`} />
+                <span>{t('backToDashboard')}</span>
               </button>
             </div>
           )}
@@ -189,9 +201,69 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </nav>
 
-        {/* TOP-RIGHT CONTROLS: Theme Toggle & Profile Avatar Menu */}
+        {/* TOP-RIGHT CONTROLS: Language Switcher, Theme Toggle & Profile Avatar Menu */}
         <div className="flex items-center gap-2 sm:gap-3">
           
+          {/* Global Language Selector Dropdown */}
+          <div className="relative" ref={langMenuRef}>
+            <button
+              id="navbar-language-switcher-btn"
+              onClick={() => setShowLangMenu(!showLangMenu)}
+              aria-label="Select interface language"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800 transition-colors"
+              title="Change Language"
+            >
+              <Globe className="w-3.5 h-3.5 text-cyan-500" />
+              <span className="text-sm leading-none">{activeLanguage.flag}</span>
+              <span className="hidden sm:inline-block font-mono text-[11px] font-semibold uppercase">
+                {activeLanguage.code.split('-')[0]}
+              </span>
+              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showLangMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showLangMenu && (
+              <div
+                id="navbar-language-dropdown"
+                className={`absolute ${isRTL ? 'left-0' : 'right-0'} mt-2 w-64 max-h-80 overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150`}
+              >
+                <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                  <p className="text-[11px] font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
+                    {t('languageOption')}
+                  </p>
+                </div>
+                <div className="p-1 space-y-0.5">
+                  {supportedLanguages.map(item => {
+                    const isSelected = item.code === language;
+                    return (
+                      <button
+                        key={item.code}
+                        id={`nav-lang-item-${item.code}`}
+                        onClick={() => {
+                          setLanguage(item.code);
+                          setShowLangMenu(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition-colors ${
+                          isSelected
+                            ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-600 dark:text-cyan-400 font-semibold'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{item.flag}</span>
+                          <div className={isRTL ? 'text-right' : 'text-left'}>
+                            <span className="block leading-tight">{item.nativeName}</span>
+                            <span className="block text-[10px] text-slate-400 font-mono">{item.name} ({item.code})</span>
+                          </div>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-cyan-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Theme Toggle Button */}
           <button
             id="theme-toggle-btn"
@@ -231,7 +303,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {showUserMenu && (
                 <div 
                   id="user-profile-dropdown"
-                  className="absolute right-0 mt-2 w-60 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+                  className={`absolute ${isRTL ? 'left-0' : 'right-0'} mt-2 w-60 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150`}
                 >
                   {/* User identity header */}
                   <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
@@ -262,10 +334,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         navigate('profile');
                         setShowUserMenu(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors text-left group"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors group"
                     >
                       <User className="w-4 h-4 text-slate-400 group-hover:text-cyan-500 transition-colors" />
-                      <span>My Profile</span>
+                      <span>{t('profile')}</span>
                     </button>
 
                     {/* Settings */}
@@ -275,10 +347,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         navigate('settings');
                         setShowUserMenu(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors text-left group"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors group"
                     >
                       <Settings className="w-4 h-4 text-slate-400 group-hover:text-cyan-500 transition-colors" />
-                      <span>Settings</span>
+                      <span>{t('settings')}</span>
                     </button>
                   </div>
 
@@ -293,10 +365,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowUserMenu(false);
                         onLogout();
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left group"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors group"
                     >
-                      <LogOut className="w-4 h-4 text-rose-500 group-hover:translate-x-0.5 transition-transform" />
-                      <span>Logout</span>
+                      <LogOut className={`w-4 h-4 text-rose-500 transition-transform ${isRTL ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`} />
+                      <span>{t('logout')}</span>
                     </button>
                   </div>
                 </div>
@@ -312,14 +384,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => navigate('login')}
                     className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
                   >
-                    Sign In
+                    {t('signIn')}
                   </button>
                   <button
                     id="navbar-analyze-btn"
                     onClick={() => navigate('analyze')}
                     className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/20 transition-all hover:scale-[1.02]"
                   >
-                    Analyze Document
+                    {t('analyzeDocument')}
                   </button>
                 </>
               ) : (
@@ -328,7 +400,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => navigate('landing')}
                   className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  Home
+                  {t('overview')}
                 </button>
               )}
             </div>
@@ -354,8 +426,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => { navigate('dashboard'); setMobileMenuOpen(false); }}
               className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/40 mb-2"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Dashboard</span>
+              <ArrowLeft className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
+              <span>{t('backToDashboard')}</span>
             </button>
           )}
 

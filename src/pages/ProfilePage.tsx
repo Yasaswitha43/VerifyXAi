@@ -11,7 +11,8 @@ import {
   Check
 } from 'lucide-react';
 import { PageRoute, UserProfile } from '../types';
-import { SUPPORTED_LANGUAGES } from '../data/mockData';
+import { useLanguage } from '../i18n';
+import { SupportedLocale } from '../i18n/types';
 
 interface ProfilePageProps {
   user: UserProfile;
@@ -21,37 +22,28 @@ interface ProfilePageProps {
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLogout, onUpdateUser }) => {
-  const [selectedLang, setSelectedLang] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('verifyx_language');
-      if (saved) return saved;
-    } catch (e) {}
-    return user.language || 'en';
-  });
-
+  const { language, setLanguage, supportedLanguages, activeLanguage, t, isRTL, formatNumber } = useLanguage();
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
-  const handleLanguageChange = (langCode: string) => {
-    setSelectedLang(langCode);
-    try {
-      localStorage.setItem('verifyx_language', langCode);
-    } catch (e) {}
+  const handleLanguageChange = (langCode: SupportedLocale) => {
+    setLanguage(langCode);
 
     if (onUpdateUser) {
       onUpdateUser({ language: langCode });
     }
 
-    const langObj = SUPPORTED_LANGUAGES.find(l => l.code === langCode);
-    setNotificationMsg(`Interface language updated to ${langObj?.name || langCode} (${langObj?.nativeName || ''})`);
+    const langObj = supportedLanguages.find(l => l.code === langCode);
+    const notice = t('languageUpdatedNotice', { 
+      lang: `${langObj?.nativeName || ''} (${langObj?.name || langCode})` 
+    });
+    setNotificationMsg(notice);
     setTimeout(() => {
       setNotificationMsg(null);
-    }, 3000);
+    }, 3500);
   };
 
-  const activeLanguage = SUPPORTED_LANGUAGES.find(l => l.code === selectedLang) || SUPPORTED_LANGUAGES[0];
-
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-left">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
       {/* TOP-LEFT Navigation: Back to Dashboard */}
       <div>
@@ -59,20 +51,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
           id="back-to-dashboard-btn"
           onClick={() => onNavigate('dashboard')}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 transition-all shadow-xs group"
-          title="Return to Dashboard"
+          title={t('backToDashboard')}
         >
-          <ArrowLeft className="w-4 h-4 text-cyan-500 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Dashboard</span>
+          <ArrowLeft className={`w-4 h-4 text-cyan-500 transition-transform ${isRTL ? 'group-hover:translate-x-0.5 rotate-180' : 'group-hover:-translate-x-0.5'}`} />
+          <span>{t('backToDashboard')}</span>
         </button>
       </div>
 
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold font-display text-slate-900 dark:text-white">
-          Account Profile
+          {t('accountProfile')}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          View your investigator profile, assigned clearance role, and account session.
+          {t('profileDesc')}
         </p>
       </div>
 
@@ -107,7 +99,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
               </p>
               <p className="flex items-center justify-center sm:justify-start gap-2">
                 <Building className="w-4 h-4 text-slate-400" />
-                <span>Role: <strong className="text-slate-700 dark:text-slate-200 font-semibold">{user.role}</strong> • {user.organization}</span>
+                <span>{t('role')}: <strong className="text-slate-700 dark:text-slate-200 font-semibold">{user.role}</strong> • {user.organization}</span>
               </p>
             </div>
           </div>
@@ -116,18 +108,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
         {/* Account Details & Status */}
         <div className="pt-6 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-1">
-            <span className="text-slate-400">Security Verification</span>
+            <span className="text-slate-400">{t('securityVerification')}</span>
             <p className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Two-Factor Authentication Active
+              {t('twoFactorActive')}
             </p>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-1">
-            <span className="text-slate-400">Analyses Executed</span>
+            <span className="text-slate-400">{t('analysesExecuted')}</span>
             <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-1">
               <FileCheck className="w-3.5 h-3.5 text-cyan-500" />
-              {user.scansPerformed || 248} Documents Verified
+              {formatNumber(user.scansPerformed || 248)} {t('documentsVerified')}
             </p>
           </div>
         </div>
@@ -138,21 +130,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Language Option
+                {t('languageOption')}
               </h3>
             </div>
             <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-              Current: <strong className="text-cyan-600 dark:text-cyan-400 font-semibold">{activeLanguage.flag} {activeLanguage.name} ({activeLanguage.nativeName})</strong>
+              {t('current')}: <strong className="text-cyan-600 dark:text-cyan-400 font-semibold">{activeLanguage.flag} {activeLanguage.name} ({activeLanguage.nativeName})</strong>
             </span>
           </div>
 
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Choose your preferred language for forensic explanations, audit logs, and interface displays based on your preference.
+            {t('languageOptionDesc')}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
-            {SUPPORTED_LANGUAGES.map((lang) => {
-              const isSelected = selectedLang === lang.code;
+            {supportedLanguages.map((lang) => {
+              const isSelected = language === lang.code;
               return (
                 <button
                   key={lang.code}
@@ -171,10 +163,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
                     </span>
                     <div className="truncate">
                       <p className={`text-xs font-semibold truncate ${isSelected ? 'text-cyan-900 dark:text-cyan-100' : 'text-slate-900 dark:text-slate-200'}`}>
-                        {lang.name}
+                        {lang.nativeName}
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                        {lang.nativeName}
+                        {lang.name} ({lang.code})
                       </p>
                     </div>
                   </div>
@@ -202,8 +194,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
             onClick={onLogout}
             className="px-5 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-semibold border border-rose-200 dark:border-rose-900/50 transition-colors flex items-center gap-2"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
+            <LogOut className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
+            <span>{t('logout')}</span>
           </button>
         </div>
 
@@ -212,3 +204,4 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onNavigate, onLo
     </div>
   );
 };
+

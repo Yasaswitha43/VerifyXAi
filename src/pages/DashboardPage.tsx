@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   FileSearch, 
   GitCompare, 
@@ -8,10 +8,17 @@ import {
   AlertTriangle, 
   ArrowRight, 
   FileText,
-  History
+  History,
+  Search,
+  X,
+  Sparkles,
+  ExternalLink,
+  SlidersHorizontal,
+  CheckCircle2
 } from 'lucide-react';
 import { PageRoute, SyntheticDocument } from '../types';
 import { SAMPLE_DOCUMENTS, MOCK_HISTORY } from '../data/mockData';
+import { useLanguage } from '../i18n';
 
 interface DashboardPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -19,11 +26,31 @@ interface DashboardPageProps {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSelectDocument }) => {
-  // Recent analyses from mock data
-  const recentAnalyses = MOCK_HISTORY.slice(0, 5);
+  const { t, isRTL, formatNumber } = useLanguage();
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Recent findings across specimens
-  const recentFindings = [
+  // Keyboard shortcut '/' or 'Cmd+K' to focus search bar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Quick filter presets
+  const quickFilters = ['Bank Statement', 'Passport', 'High Risk', 'Font Kerning', 'Metadata', 'Invoice'];
+
+  // All findings across specimens
+  const allFindings = [
     {
       id: 'f1',
       title: 'Font Weight & Kerning Disparity',
@@ -58,17 +85,71 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
     }
   ];
 
+  // Filtered lists based on search query
+  const query = searchQuery.trim().toLowerCase();
+
+  const matchedDocuments = useMemo(() => {
+    if (!query) return [];
+    return SAMPLE_DOCUMENTS.filter(doc => 
+      doc.name.toLowerCase().includes(query) ||
+      doc.type.toLowerCase().includes(query) ||
+      doc.format.toLowerCase().includes(query) ||
+      doc.riskLevel.toLowerCase().includes(query) ||
+      doc.metadata?.creationTool?.toLowerCase().includes(query) ||
+      doc.metadata?.hashSha256?.toLowerCase().includes(query) ||
+      doc.anomalies.some(a => 
+        a.title.toLowerCase().includes(query) || 
+        a.category.toLowerCase().includes(query) ||
+        a.description.toLowerCase().includes(query)
+      )
+    );
+  }, [query]);
+
+  const filteredAnalyses = useMemo(() => {
+    if (!query) return MOCK_HISTORY.slice(0, 5);
+    return MOCK_HISTORY.filter(item =>
+      item.docName.toLowerCase().includes(query) ||
+      item.type.toLowerCase().includes(query) ||
+      item.status.toLowerCase().includes(query) ||
+      item.riskLevel.toLowerCase().includes(query) ||
+      item.verifiedBy.toLowerCase().includes(query)
+    );
+  }, [query]);
+
+  const filteredFindings = useMemo(() => {
+    if (!query) return allFindings;
+    return allFindings.filter(finding =>
+      finding.title.toLowerCase().includes(query) ||
+      finding.doc.toLowerCase().includes(query) ||
+      finding.severity.toLowerCase().includes(query) ||
+      finding.desc.toLowerCase().includes(query)
+    );
+  }, [query]);
+
+  // Helper to open document in results page
+  const handleOpenDoc = (docName: string) => {
+    const cleanName = docName.toLowerCase().replace(/\.[^/.]+$/, '');
+    const matched = SAMPLE_DOCUMENTS.find(d => 
+      d.name.toLowerCase().includes(cleanName) ||
+      cleanName.includes(d.type.toLowerCase())
+    ) || SAMPLE_DOCUMENTS[0];
+    onSelectDocument(matched);
+    onNavigate('results');
+  };
+
+  const totalMatches = matchedDocuments.length + filteredAnalyses.length + filteredFindings.length;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-left relative z-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 relative z-10">
       
       {/* Header with System Integrity Status Pill */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60 dark:border-slate-800/60">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-900 dark:text-white tracking-tight">
-            AI Document Tampering & Identity Risk Analyzer
+            {t('dashboardTitle')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-            Analyze documents, detect potential tampering, identify anomalies, and understand verification risk with AI-powered forensic analysis.
+            {t('dashboardSubtitle')}
           </p>
         </div>
 
@@ -84,7 +165,147 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
         </div>
       </div>
 
-      {/* Primary Action Cards: Analysis, Document Comparison, History, Reports (Glass Depth & 3D Visibility) */}
+      {/* Forensic Intelligence Search Bar */}
+      <div id="dashboard-search-container" className="space-y-3">
+        <div className="relative flex items-center">
+          <div className={`absolute inset-y-0 ${isRTL ? 'right-0 pr-4' : 'left-0 pl-4'} flex items-center pointer-events-none text-slate-400 dark:text-slate-500`}>
+            <Search className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+          </div>
+          <input
+            id="dashboard-search-input"
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            className={`w-full ${isRTL ? 'pr-12 pl-24 sm:pl-28' : 'pl-12 pr-24 sm:pr-28'} py-3.5 rounded-2xl bg-white/80 dark:bg-[#091533]/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-lg shadow-slate-900/5 dark:shadow-cyan-950/20 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 dark:focus:border-cyan-400 transition-all`}
+          />
+          <div className={`absolute inset-y-0 ${isRTL ? 'left-0 pl-3.5' : 'right-0 pr-3.5'} flex items-center gap-2`}>
+            {searchQuery ? (
+              <button
+                id="dashboard-search-clear-btn"
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title={t('clearFilter')}
+                aria-label={t('clearFilter')}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            ) : (
+              <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-medium text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs">
+                /
+              </kbd>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Search Chips & Live Match Summary */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1 font-medium">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-500" /> {t('quickFilters')}:
+            </span>
+            {quickFilters.map((tag) => {
+              const isActive = searchQuery.toLowerCase() === tag.toLowerCase();
+              return (
+                <button
+                  key={tag}
+                  id={`dashboard-filter-${tag.toLowerCase().replace(/\s+/g, '-')}`}
+                  type="button"
+                  onClick={() => setSearchQuery(isActive ? '' : tag)}
+                  className={`px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/40 font-semibold shadow-xs'
+                      : 'bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:border-cyan-500/40 hover:text-cyan-600 dark:hover:text-cyan-300'
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+
+          {searchQuery && (
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 text-xs">
+              <span>
+                {t('foundMatches', { count: formatNumber(totalMatches) })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-xs text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer ml-1"
+              >
+                {t('reset')}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Matched Specimens Section (Displayed when search matches specimen archive) */}
+      {query && matchedDocuments.length > 0 && (
+        <div id="dashboard-matched-specimens" className="rounded-2xl p-6 bg-white/75 dark:bg-[#091533]/80 backdrop-blur-xl border border-cyan-500/30 dark:border-cyan-500/30 shadow-lg shadow-cyan-950/15 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FileSearch className="w-4 h-4 text-cyan-500" /> {t('matchedSpecimens')} ({formatNumber(matchedDocuments.length)})
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Specimens in repository containing matching forensic signatures or metadata.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {matchedDocuments.map((doc) => {
+              const isHigh = doc.riskScore >= 70;
+              const isMed = doc.riskScore >= 40 && doc.riskScore < 70;
+              return (
+                <div
+                  key={doc.id}
+                  id={`dashboard-matched-doc-${doc.id}`}
+                  onClick={() => {
+                    onSelectDocument(doc);
+                    onNavigate('results');
+                  }}
+                  className="group cursor-pointer p-4 rounded-xl bg-slate-50/90 dark:bg-[#0c1c44]/70 border border-slate-200/80 dark:border-cyan-500/20 hover:border-cyan-500 dark:hover:border-cyan-400 transition-all duration-200 flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 uppercase">
+                        {doc.type} • {doc.format}
+                      </span>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                        isHigh
+                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40'
+                          : isMed
+                          ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/40'
+                          : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
+                      }`}>
+                        {t('risk')} {formatNumber(doc.riskScore)}%
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors line-clamp-1">
+                      {doc.name}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                      {doc.riskExplanation || `${doc.anomalies.length} anomaly signatures flagged.`}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs text-cyan-600 dark:text-cyan-400 font-medium">
+                    <span>Inspect Forensic Dossier</span>
+                    <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isRTL ? 'group-hover:-translate-x-1 rotate-180' : 'group-hover:translate-x-1'}`} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Primary Action Cards: Analysis, Document Comparison, History, Reports */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
         {/* Analyze Document Card */}
@@ -99,21 +320,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                 <FileSearch className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
-                Single Scan
+                {t('singleScan')}
               </span>
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                Analysis
+                {t('analysis')}
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-                Inspect documents for text modifications, ELA, and metadata anomalies.
+                {t('analysisCardDesc')}
               </p>
             </div>
           </div>
           <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs font-semibold text-cyan-600 dark:text-cyan-400">
-            <span>Analyze Specimen</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <span>{t('analyzeSpecimen')}</span>
+            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isRTL ? 'group-hover:-translate-x-1 rotate-180' : 'group-hover:translate-x-1'}`} />
           </div>
         </div>
 
@@ -129,21 +350,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                 <Dna className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                DNA Engine
+                {t('dnaEngine')}
               </span>
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
-                Document DNA
+                {t('documentDNA')}
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-                Genomic biometrics and tri-color differential analysis of clean, suspicious, and tampered data.
+                {t('documentDnaDesc')}
               </p>
             </div>
           </div>
           <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs font-semibold text-violet-600 dark:text-violet-400">
-            <span>Inspect Document DNA</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <span>{t('inspectDNA')}</span>
+            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isRTL ? 'group-hover:-translate-x-1 rotate-180' : 'group-hover:translate-x-1'}`} />
           </div>
         </div>
 
@@ -159,21 +380,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                 <History className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                Audit Trail
+                {t('auditTrail')}
               </span>
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                History
+                {t('history')}
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-                Audit trail and historical logs of all completed forensic verifications.
+                {t('historyCardDesc')}
               </p>
             </div>
           </div>
           <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400">
-            <span>Audit Trail</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <span>{t('auditTrail')}</span>
+            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isRTL ? 'group-hover:-translate-x-1 rotate-180' : 'group-hover:translate-x-1'}`} />
           </div>
         </div>
 
@@ -189,46 +410,46 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                 <FileText className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                Certificates
+                {t('certificates')}
               </span>
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                Reports
+                {t('reports')}
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-                Export verifiable certificates, audit dossiers, and compliance reports.
+                {t('reportsCardDesc')}
               </p>
             </div>
           </div>
           <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-            <span>View Certificates</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <span>{t('viewCertificates')}</span>
+            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isRTL ? 'group-hover:-translate-x-1 rotate-180' : 'group-hover:translate-x-1'}`} />
           </div>
         </div>
 
       </div>
 
-      {/* 3. Risk Overview (Glass Depth Card) */}
+      {/* 3. Risk Overview */}
       <div className="rounded-2xl p-6 bg-white/75 dark:bg-[#091533]/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg shadow-slate-900/5 dark:shadow-cyan-950/20 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Risk Overview
+              {t('riskOverview')}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Distribution of forensic scan verdicts across all ingested documents.
+              {t('riskOverviewDesc')}
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-medium">
             <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" /> Low Risk (72%)
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" /> {t('lowRisk')} ({formatNumber(72)}%)
             </span>
             <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-              <span className="w-2 h-2 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" /> Suspicious (14%)
+              <span className="w-2 h-2 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" /> {t('suspicious')} ({formatNumber(14)}%)
             </span>
             <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
-              <span className="w-2 h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" /> Tampered (14%)
+              <span className="w-2 h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" /> {t('tampered')} ({formatNumber(14)}%)
             </span>
           </div>
         </div>
@@ -247,8 +468,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xl font-bold text-slate-900 dark:text-white">924</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Verified Authentic</p>
+              <p className="text-xl font-bold text-slate-900 dark:text-white">{formatNumber(924)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('verifiedAuthentic')}</p>
             </div>
           </div>
 
@@ -257,8 +478,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
               <AlertTriangle className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xl font-bold text-slate-900 dark:text-white">178</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Suspicious Anomalies</p>
+              <p className="text-xl font-bold text-slate-900 dark:text-white">{formatNumber(178)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('suspiciousAnomalies')}</p>
             </div>
           </div>
 
@@ -267,8 +488,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
               <ShieldAlert className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xl font-bold text-slate-900 dark:text-white">182</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Confirmed Tampered</p>
+              <p className="text-xl font-bold text-slate-900 dark:text-white">{formatNumber(182)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('confirmedTampered')}</p>
             </div>
           </div>
         </div>
@@ -282,67 +503,78 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Recent Analyses
+                {t('recentAnalyses')}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Latest document forensic inspections.
+                {t('recentAnalysesDesc')}
               </p>
             </div>
             <button 
               onClick={() => onNavigate('history')}
               className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
             >
-              View All
+              {t('viewAll')}
             </button>
           </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
-            {recentAnalyses.map((item) => {
-              const isHigh = item.riskScore >= 70;
-              const isMedium = item.riskScore >= 40 && item.riskScore < 70;
-              return (
-                <div 
-                  key={item.id} 
-                  className="py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-[#0c1c44]/60 px-2.5 rounded-xl transition-colors"
+            {filteredAnalyses.length === 0 ? (
+              <div className="py-8 text-center space-y-2">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {t('noResultsFound')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 border border-slate-200/50 dark:border-slate-700/50">
-                      <FileText className="w-4 h-4" />
+                  {t('clearFilter')}
+                </button>
+              </div>
+            ) : (
+              filteredAnalyses.map((item) => {
+                const isHigh = item.riskScore >= 70;
+                const isMedium = item.riskScore >= 40 && item.riskScore < 70;
+                return (
+                  <div 
+                    key={item.id} 
+                    className="py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-[#0c1c44]/60 px-2.5 rounded-xl transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 border border-slate-200/50 dark:border-slate-700/50">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                          {item.docName}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {item.date} • {item.type}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                        {item.docName}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {item.date} • {item.type}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      isHigh
-                        ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40'
-                        : isMedium
-                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40'
-                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40'
-                    }`}>
-                      Risk {item.riskScore}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const doc = SAMPLE_DOCUMENTS[0];
-                        onSelectDocument(doc);
-                        onNavigate('results');
-                      }}
-                      className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
-                    >
-                      Report
-                    </button>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        isHigh
+                          ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40'
+                          : isMedium
+                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40'
+                          : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40'
+                      }`}>
+                        {t('risk')} {formatNumber(item.riskScore)}
+                      </span>
+                      <button
+                        onClick={() => handleOpenDoc(item.docName)}
+                        className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                      >
+                        {t('report')}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -350,41 +582,60 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
         <div className="lg:col-span-5 rounded-2xl p-6 bg-white/75 dark:bg-[#091533]/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg shadow-slate-900/5 dark:shadow-cyan-950/20 space-y-4">
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Recent Findings
+              {t('recentFindings')}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Critical anomalies flagged by neural analyzers.
+              {t('recentFindingsDesc')}
             </p>
           </div>
 
           <div className="space-y-3">
-            {recentFindings.map((finding) => (
-              <div 
-                key={finding.id}
-                className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-[#0c1c44]/60 border border-slate-200/60 dark:border-cyan-500/15 backdrop-blur-sm space-y-1.5 hover:border-cyan-500/30 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-900 dark:text-white">
-                    {finding.title}
-                  </span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    finding.severity === 'high'
-                      ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50'
-                      : finding.severity === 'medium'
-                      ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50'
-                      : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50'
-                  }`}>
-                    {finding.severity.toUpperCase()}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {finding.desc}
+            {filteredFindings.length === 0 ? (
+              <div className="py-8 text-center space-y-2">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {t('noResultsFound')}
                 </p>
-                <p className="text-[11px] text-slate-400 pt-0.5">
-                  {finding.doc} • {finding.time}
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                >
+                  {t('clearFilter')}
+                </button>
               </div>
-            ))}
+            ) : (
+              filteredFindings.map((finding) => (
+                <div 
+                  key={finding.id}
+                  onClick={() => handleOpenDoc(finding.doc)}
+                  className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-[#0c1c44]/60 border border-slate-200/60 dark:border-cyan-500/15 backdrop-blur-sm space-y-1.5 hover:border-cyan-500/40 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                      {finding.title}
+                    </span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      finding.severity === 'high'
+                        ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50'
+                        : finding.severity === 'medium'
+                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50'
+                        : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50'
+                    }`}>
+                      {finding.severity.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {finding.desc}
+                  </p>
+                  <p className="text-[11px] text-slate-400 pt-0.5 flex items-center justify-between">
+                    <span>{finding.doc} • {finding.time}</span>
+                    <span className="text-cyan-600 dark:text-cyan-400 text-[10px] group-hover:underline flex items-center gap-1">
+                      {t('viewSpecimen')} <ArrowRight className={`w-3 h-3 ${isRTL ? 'rotate-180' : ''}`} />
+                    </span>
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -393,3 +644,4 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
     </div>
   );
 };
+

@@ -1,16 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Flame, 
   ZoomIn, 
   ZoomOut, 
   AlertTriangle, 
-  Layers, 
   ShieldAlert, 
   ShieldCheck, 
   Activity, 
-  BarChart3,
-  TrendingUp,
-  Info
+  Info,
+  Sliders,
+  Sparkles,
+  BarChart3
 } from 'lucide-react';
 import { ForensicAnomaly } from '../types';
 
@@ -18,54 +18,281 @@ interface TamperHeatmapViewerProps {
   imageSrc?: string;
   anomalies: ForensicAnomaly[];
   riskScore?: number;
+  riskBreakdown?: {
+    font: number;
+    layout: number;
+    metadata: number;
+    aiOrigin: number;
+    splicing: number;
+    crossField: number;
+  };
+}
+
+interface VerticalBarItem {
+  id: string;
+  name: string;
+  shortLabel?: string;
+  category: string;
+  value: number;
+  type: 'risk' | 'suspicious' | 'clean';
+  group: 'overall' | 'indicator';
+  badge: string;
+  filterGroup?: 'all' | 'ela' | 'edges' | 'clean';
+  description: string;
+  evidence: string;
 }
 
 export const TamperHeatmapViewer: React.FC<TamperHeatmapViewerProps> = ({ 
   anomalies, 
-  riskScore = 78 
+  riskScore = 78,
+  riskBreakdown
 }) => {
   const [activeFilter, setActiveFilter] = useState<'heatmap' | 'ela' | 'edges' | 'clean'>('heatmap');
   const [zoom, setZoom] = useState(1);
-  const [selectedAnomaly, setSelectedAnomaly] = useState<ForensicAnomaly | null>(null);
+  const [hoveredBarId, setHoveredBarId] = useState<string | null>(null);
+  const [selectedBarId, setSelectedBarId] = useState<string | null>('dct');
+  const [isAnimated, setIsAnimated] = useState(false);
+
+  // Smooth entry animation on load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAnimated(true);
+    }, 60);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Calculate dynamic percentages of Risks, Suspicious, and Verified Clean
-  const { risksPercent, suspiciousPercent, cleanPercent } = useMemo(() => {
-    // If anomalies exist, compute based on severity weights, otherwise use riskScore
+  const { risksPercent, suspiciousPercent, cleanPercent, effectiveRisk } = useMemo(() => {
     let computedRisk = riskScore;
     if (anomalies && anomalies.length > 0) {
       const criticalCount = anomalies.filter(a => a.severity === 'critical').length;
       const moderateCount = anomalies.filter(a => a.severity !== 'critical').length;
-      computedRisk = Math.min(95, Math.max(15, (criticalCount * 28) + (moderateCount * 14)));
+      const weighted = (criticalCount * 26) + (moderateCount * 13);
+      if (weighted > 0) {
+        computedRisk = Math.min(96, Math.max(15, weighted));
+      }
     }
 
-    // High severity tampering/risks
-    const rPct = Math.max(8, Math.min(75, Math.round(computedRisk * 0.52)));
-    // Suspicious fluctuations/anomalies
-    const sPct = Math.max(6, Math.min(45, Math.round(computedRisk * 0.34)));
-    // Remainder is verified clean
+    // Default for riskScore 78 gives exactly 44% risks, 29% suspicious, 27% clean
+    const rPct = Math.max(5, Math.min(85, Math.round(computedRisk * 0.564)));
+    const sPct = Math.max(5, Math.min(45, Math.round(computedRisk * 0.372)));
     const cPct = Math.max(5, 100 - rPct - sPct);
 
     return {
       risksPercent: rPct,
       suspiciousPercent: sPct,
-      cleanPercent: cPct
+      cleanPercent: cPct,
+      effectiveRisk: computedRisk
     };
   }, [riskScore, anomalies]);
 
+  // GROUP 1: Overall Classification Vertical Bars
+  const overallBars: VerticalBarItem[] = useMemo(() => {
+    return [
+      {
+        id: 'overall-risks',
+        name: 'Risks',
+        shortLabel: 'Risks',
+        category: 'Critical Forensic Anomalies',
+        value: risksPercent,
+        type: 'risk',
+        group: 'overall',
+        badge: 'High Anomaly',
+        description: 'Aggregate proportion of specimen surface exhibiting high-severity tampering spikes and vector splicing.',
+        evidence: `${risksPercent}% of analyzed regions exhibit structural or pixel entropy divergence exceeding safety thresholds.`
+      },
+      {
+        id: 'overall-suspicious',
+        name: 'Suspicious',
+        shortLabel: 'Suspicious',
+        category: 'Moderate Forensic Fluctuations',
+        value: suspiciousPercent,
+        type: 'suspicious',
+        group: 'overall',
+        badge: 'Moderate Deviation',
+        description: 'Aggregate proportion of specimen exhibiting compression artifacts, re-compression jitter, or minor misalignment.',
+        evidence: `${suspiciousPercent}% of specimen exhibits localized secondary quantization deltas.`
+      },
+      {
+        id: 'overall-clean',
+        name: 'Verified Clean',
+        shortLabel: 'Clean',
+        category: 'Pristine Ground Truth',
+        value: cleanPercent,
+        type: 'clean',
+        group: 'overall',
+        badge: 'Verified Clean',
+        description: 'Aggregate proportion of specimen maintaining continuous sensor noise, uniform baseline, and authentic typography.',
+        evidence: `${cleanPercent}% of document substrate satisfies authentic baseline institutional profiles.`
+      }
+    ];
+  }, [risksPercent, suspiciousPercent, cleanPercent]);
+
+  // GROUP 2: Forensic Indicator Vertical Bars
+  const indicatorBars: VerticalBarItem[] = useMemo(() => {
+    // 1. DCT Variance (65% for default 78)
+    const dctVal = riskBreakdown?.splicing 
+      ? Math.round(riskBreakdown.splicing * 0.956)
+      : Math.min(100, Math.round(effectiveRisk * 0.8333));
+    
+    // 2. Layout (91% for default 78)
+    const layoutVal = riskBreakdown?.layout 
+      ? Math.min(100, Math.round(riskBreakdown.layout * 1.167))
+      : Math.min(100, Math.round(effectiveRisk * 1.1667));
+
+    // 3. Font (96% for default 78)
+    const fontVal = riskBreakdown?.font 
+      ? Math.min(100, Math.round(riskBreakdown.font * 1.043))
+      : Math.min(100, Math.round(effectiveRisk * 1.2308));
+
+    // 4. Cross-Field (100% for default 78)
+    const crossFieldVal = riskBreakdown?.crossField 
+      ? Math.min(100, Math.round(riskBreakdown.crossField * 1.042))
+      : Math.min(100, Math.max(20, Math.round(effectiveRisk * 1.282)));
+
+    // 5. Substrate Baseline (25% for default 78)
+    const substrateVal = Math.max(8, Math.min(100, Math.round(100 - (effectiveRisk * 0.9615))));
+
+    const list: VerticalBarItem[] = [
+      {
+        id: 'dct',
+        name: 'DCT Variance',
+        shortLabel: 'DCT Variance',
+        category: 'Compression Entropy (8x8 DCT)',
+        value: dctVal,
+        type: dctVal > 75 ? 'risk' : dctVal >= 40 ? 'suspicious' : 'clean',
+        group: 'indicator',
+        badge: dctVal > 75 ? 'Critical' : dctVal >= 40 ? 'Suspicious' : 'Clean',
+        filterGroup: 'ela',
+        description: 'Measures high-frequency quantization noise disparities across JPEG/PDF discrete cosine transform blocks.',
+        evidence: 'Detected +4.2 dB non-uniform high-frequency residual energy across numeric field boundary.'
+      },
+      {
+        id: 'layout',
+        name: 'Layout',
+        shortLabel: 'Layout',
+        category: 'Spatial Coordinates & Margin Geometry',
+        value: layoutVal,
+        type: layoutVal > 75 ? 'risk' : layoutVal >= 40 ? 'suspicious' : 'clean',
+        group: 'indicator',
+        badge: layoutVal > 75 ? 'High Anomaly' : layoutVal >= 40 ? 'Suspicious' : 'Clean',
+        filterGroup: 'edges',
+        description: 'Calculates Euclidean baseline alignment shift and table column bounding box deviations from institutional templates.',
+        evidence: 'Column header grid misaligned by 3.8px compared to reference canonical schema.'
+      },
+      {
+        id: 'font',
+        name: 'Font',
+        shortLabel: 'Font',
+        category: 'Glyph Biometrics & Optical Kerning',
+        value: fontVal,
+        type: fontVal > 75 ? 'risk' : fontVal >= 40 ? 'suspicious' : 'clean',
+        group: 'indicator',
+        badge: fontVal > 75 ? 'High Anomaly' : fontVal >= 40 ? 'Suspicious' : 'Clean',
+        filterGroup: 'edges',
+        description: 'Extracts typographic stroke thickness, optical character kerning deltas, and synthetic font substitutions.',
+        evidence: 'Embedded typeface replaced with synthetic Arial vector approximation; kerning variance exceeds 12%.'
+      },
+      {
+        id: 'cross-field',
+        name: 'Cross-Field',
+        shortLabel: 'Cross-Field',
+        category: 'Semantic & Arithmetic Audit',
+        value: crossFieldVal,
+        type: crossFieldVal > 75 ? 'risk' : crossFieldVal >= 40 ? 'suspicious' : 'clean',
+        group: 'indicator',
+        badge: crossFieldVal > 75 ? 'Critical Risk' : crossFieldVal >= 40 ? 'Suspicious' : 'Clean',
+        filterGroup: 'edges',
+        description: 'Cross-references arithmetic balances, tax rates, transaction dates, and account hashes against relational rules.',
+        evidence: 'Total amount does not balance against itemized subtotal; line 4 timestamp post-dates document generation.'
+      },
+      {
+        id: 'substrate',
+        name: 'Substrate Baseline',
+        shortLabel: 'Substrate',
+        category: 'Substrate Integrity & Clean Noise Floor',
+        value: substrateVal,
+        type: 'clean', // Green color language
+        group: 'indicator',
+        badge: 'Verified Clean',
+        filterGroup: 'clean',
+        description: 'Analyzes micro-texture paper substrate fibers and scanner sensor pattern noise to verify non-tampered baseline.',
+        evidence: '25% of background substrate maintains pristine continuous scanner sensor noise profile.'
+      }
+    ];
+
+    return list;
+  }, [effectiveRisk, riskBreakdown]);
+
+  // Filtered indicator bars based on active toolbar filter
+  const displayedIndicators = useMemo(() => {
+    if (activeFilter === 'heatmap') return indicatorBars;
+    if (activeFilter === 'ela') return indicatorBars.filter(i => i.filterGroup === 'ela' || i.id === 'substrate');
+    if (activeFilter === 'edges') return indicatorBars.filter(i => i.filterGroup === 'edges');
+    if (activeFilter === 'clean') return indicatorBars.filter(i => i.type === 'clean');
+    return indicatorBars;
+  }, [activeFilter, indicatorBars]);
+
+  // Currently active bar for inspector drawer
+  const allBars = useMemo(() => [...overallBars, ...indicatorBars], [overallBars, indicatorBars]);
+  const activeBar = allBars.find(b => b.id === (hoveredBarId || selectedBarId)) || indicatorBars[0];
+
+  // Helper for bar styling
+  const getBarColorClasses = (type: 'risk' | 'suspicious' | 'clean', isHovered: boolean, isSelected: boolean) => {
+    if (type === 'risk') {
+      return {
+        barBg: 'bg-gradient-to-t from-rose-600/95 via-rose-500 to-rose-400 border-t-2 border-x border-rose-300/80',
+        glow: isHovered || isSelected
+          ? 'shadow-[0_0_24px_rgba(244,63,94,0.85)] ring-2 ring-rose-400'
+          : 'shadow-[0_0_14px_rgba(244,63,94,0.5)]',
+        text: 'text-rose-500 dark:text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]',
+        topCap: 'bg-rose-200 shadow-[0_0_8px_#ffffff]',
+        badge: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+      };
+    }
+    if (type === 'suspicious') {
+      return {
+        barBg: 'bg-gradient-to-t from-amber-600/95 via-amber-500 to-yellow-400 border-t-2 border-x border-amber-300/80',
+        glow: isHovered || isSelected
+          ? 'shadow-[0_0_24px_rgba(245,158,11,0.85)] ring-2 ring-amber-400'
+          : 'shadow-[0_0_14px_rgba(245,158,11,0.5)]',
+        text: 'text-amber-500 dark:text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]',
+        topCap: 'bg-amber-100 shadow-[0_0_8px_#ffffff]',
+        badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+      };
+    }
+    // Clean (Green)
+    return {
+      barBg: 'bg-gradient-to-t from-emerald-600/95 via-emerald-500 to-teal-400 border-t-2 border-x border-emerald-300/80',
+      glow: isHovered || isSelected
+        ? 'shadow-[0_0_24px_rgba(16,185,129,0.85)] ring-2 ring-emerald-400'
+        : 'shadow-[0_0_14px_rgba(16,185,129,0.5)]',
+      text: 'text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]',
+      topCap: 'bg-emerald-100 shadow-[0_0_8px_#ffffff]',
+      badge: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+    };
+  };
+
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 overflow-hidden shadow-xl">
+    <div id="tamper-heatmap-container" className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#070d1e] overflow-hidden shadow-xl text-left">
+      
       {/* Control Toolbar */}
-      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-950/50">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-950/60">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500">
             <Flame className="w-4 h-4" />
           </div>
           <div>
             <h4 className="text-xs font-bold font-display text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-              Tamper Heatmap &amp; Spectral Graph Inspector
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono">LIVE GRAPH MATRIX</span>
+              Tamper Heatmap &amp; Spectral Bar Inspector
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-mono border border-cyan-500/30 flex items-center gap-1">
+                <BarChart3 className="w-3 h-3" />
+                VERTICAL BAR CHART
+              </span>
             </h4>
-            <p className="text-[11px] text-slate-500 font-mono">Pixel compression entropy &amp; forensic risk distribution graph</p>
+            <p className="text-[11px] text-slate-500 font-mono">
+              Overall spectrum classification &amp; forensic indicator vertical bar metrics
+            </p>
           </div>
         </div>
 
@@ -75,15 +302,15 @@ export const TamperHeatmapViewer: React.FC<TamperHeatmapViewerProps> = ({
             <button
               onClick={() => setActiveFilter('heatmap')}
               className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                activeFilter === 'heatmap' ? 'bg-rose-500 text-white font-medium shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                activeFilter === 'heatmap' ? 'bg-cyan-500 text-slate-950 font-semibold shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
-              Heatmap
+              All Bars
             </button>
             <button
               onClick={() => setActiveFilter('ela')}
               className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                activeFilter === 'ela' ? 'bg-cyan-500 text-slate-950 font-medium shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                activeFilter === 'ela' ? 'bg-amber-500 text-slate-950 font-semibold shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
               ELA (Noise)
@@ -91,15 +318,15 @@ export const TamperHeatmapViewer: React.FC<TamperHeatmapViewerProps> = ({
             <button
               onClick={() => setActiveFilter('edges')}
               className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                activeFilter === 'edges' ? 'bg-violet-500 text-white font-medium shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                activeFilter === 'edges' ? 'bg-rose-500 text-white font-semibold shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
-              Laplacian Edges
+              Vector &amp; Edges
             </button>
             <button
               onClick={() => setActiveFilter('clean')}
               className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-                activeFilter === 'clean' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-medium shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                activeFilter === 'clean' ? 'bg-emerald-500 text-slate-950 font-semibold shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
               Clean Baseline
@@ -108,17 +335,19 @@ export const TamperHeatmapViewer: React.FC<TamperHeatmapViewerProps> = ({
 
           <div className="flex items-center gap-1 bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-lg">
             <button
-              onClick={() => setZoom(prev => Math.max(0.8, prev - 0.2))}
+              onClick={() => setZoom(prev => Math.max(0.85, prev - 0.15))}
               className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
-              title="Zoom out"
+              title="Compact View"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-[11px] font-mono px-1 text-slate-600 dark:text-slate-300">{Math.round(zoom * 100)}%</span>
+            <span className="text-[11px] font-mono px-1 text-slate-600 dark:text-slate-300">
+              {Math.round(zoom * 100)}%
+            </span>
             <button
-              onClick={() => setZoom(prev => Math.min(2.0, prev + 0.2))}
+              onClick={() => setZoom(prev => Math.min(1.25, prev + 0.15))}
               className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
-              title="Zoom in"
+              title="Expanded View"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -126,344 +355,328 @@ export const TamperHeatmapViewer: React.FC<TamperHeatmapViewerProps> = ({
         </div>
       </div>
 
-      {/* Forensic Graph HUD: Percentages of Risks, Suspicious, and Verified Clean */}
-      <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-cyan-400" />
-          <span className="font-bold text-white uppercase tracking-wider text-[11px] font-mono">
-            Forensic Verdict Distribution Graph
-          </span>
-        </div>
-
-        {/* 3 Metric Cards with Exact Percentages */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Risks Percentage */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400">
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-            <span className="font-mono text-[11px]">Risks:</span>
-            <span className="font-extrabold font-mono text-sm text-rose-400">{risksPercent}%</span>
-          </div>
-
-          {/* Suspicious Percentage */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-            <span className="font-mono text-[11px]">Suspicious:</span>
-            <span className="font-extrabold font-mono text-sm text-amber-400">{suspiciousPercent}%</span>
-          </div>
-
-          {/* Verified Clean Percentage */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="font-mono text-[11px]">Verified Clean:</span>
-            <span className="font-extrabold font-mono text-sm text-emerald-400">{cleanPercent}%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Multi-segment Distribution Bar */}
-      <div className="w-full h-2 bg-slate-950 flex overflow-hidden border-b border-slate-800">
+      {/* VERTICAL BAR CHART VISUALIZER */}
+      <div 
+        className="p-4 sm:p-6 bg-[#060b19] relative overflow-hidden transition-all duration-200 select-none"
+        style={{
+          transform: `scale(${zoom})`,
+          transformOrigin: 'top center'
+        }}
+      >
+        {/* Futuristic Cyan/Blue Coordinate Grid Background */}
         <div 
-          className="h-full bg-rose-500 transition-all duration-500 relative group cursor-pointer" 
-          style={{ width: `${risksPercent}%` }} 
-          title={`Risks: ${risksPercent}%`}
+          className="absolute inset-0 pointer-events-none opacity-25"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, rgba(56, 189, 248, 0.15) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(56, 189, 248, 0.15) 1px, transparent 1px)
+            `,
+            backgroundSize: '32px 32px'
+          }}
         />
-        <div 
-          className="h-full bg-amber-500 transition-all duration-500 relative group cursor-pointer" 
-          style={{ width: `${suspiciousPercent}%` }} 
-          title={`Suspicious: ${suspiciousPercent}%`}
-        />
-        <div 
-          className="h-full bg-emerald-500 transition-all duration-500 relative group cursor-pointer" 
-          style={{ width: `${cleanPercent}%` }} 
-          title={`Verified Clean: ${cleanPercent}%`}
-        />
-      </div>
 
-      {/* Main Visualizer Container: Forensic Graph Representation */}
-      <div className="relative w-full h-[400px] sm:h-[480px] bg-[#070d1e] overflow-hidden flex items-center justify-center select-none">
-        <div 
-          className="relative transition-transform duration-200 w-full h-full"
-          style={{ transform: `scale(${zoom})` }}
-        >
-          {/* Forensic Vector Graph Background (Replacing Calculator Image) */}
-          <svg 
-            className="w-full h-full"
-            viewBox="0 0 1000 500" 
-            preserveAspectRatio="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              {/* Coordinate Grid Pattern */}
-              <pattern id="forensicGrid" width="50" height="50" patternUnits="userSpaceOnUse">
-                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(56, 189, 248, 0.07)" strokeWidth="1" />
-                <circle cx="50" cy="50" r="1.2" fill="rgba(56, 189, 248, 0.2)" />
-              </pattern>
+        {/* Ambient Subtle Radial Glows */}
+        <div className="absolute top-10 left-1/4 w-72 h-72 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-10 right-1/4 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
-              {/* Sub-grid pattern */}
-              <pattern id="fineGrid" width="10" height="10" patternUnits="userSpaceOnUse">
-                <path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255, 255, 255, 0.02)" strokeWidth="0.5" />
-              </pattern>
-
-              {/* Gradient for Risks Area (Rose/Red) */}
-              <linearGradient id="riskAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.55" />
-                <stop offset="45%" stopColor="#f43f5e" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
-              </linearGradient>
-
-              {/* Gradient for Suspicious Area (Amber/Orange) */}
-              <linearGradient id="suspiciousAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.45" />
-                <stop offset="55%" stopColor="#f59e0b" stopOpacity="0.18" />
-                <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
-              </linearGradient>
-
-              {/* Gradient for Verified Clean Area (Emerald/Green) */}
-              <linearGradient id="cleanAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity="0.38" />
-                <stop offset="60%" stopColor="#10b981" stopOpacity="0.12" />
-                <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
-
-            {/* Background Grid Rectangles */}
-            <rect width="1000" height="500" fill="#060c1d" />
-            <rect width="1000" height="500" fill="url(#fineGrid)" />
-            <rect width="1000" height="500" fill="url(#forensicGrid)" />
-
-            {/* Y-Axis Horizontal Scale Lines */}
-            <line x1="60" y1="80" x2="960" y2="80" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-            <line x1="60" y1="160" x2="960" y2="160" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-            <line x1="60" y1="240" x2="960" y2="240" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-            <line x1="60" y1="320" x2="960" y2="320" stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-            <line x1="60" y1="420" x2="960" y2="420" stroke="rgba(56,189,248,0.25)" strokeWidth="1.5" />
-
-            {/* Axis Labels */}
-            <text x="70" y="75" fill="#f43f5e" fontSize="11" fontFamily="monospace" opacity="0.8">ERROR ENTROPY 100% (CRITICAL RISKS)</text>
-            <text x="70" y="155" fill="#f59e0b" fontSize="11" fontFamily="monospace" opacity="0.8">DCT VARIANCE 65% (SUSPICIOUS DEVIATION)</text>
-            <text x="70" y="315" fill="#10b981" fontSize="11" fontFamily="monospace" opacity="0.8">SUBSTRATE BASELINE 25% (VERIFIED CLEAN)</text>
-            <text x="70" y="440" fill="#64748b" fontSize="10" fontFamily="monospace">0.0 PX (ORIGIN)</text>
-            <text x="480" y="440" fill="#64748b" fontSize="10" fontFamily="monospace">SPATIAL RASTER SCAN (2048 PX)</text>
-            <text x="880" y="440" fill="#64748b" fontSize="10" fontFamily="monospace">4096 PX (MAX)</text>
-
-            {/* 1. Verified Clean Graph Area & Curve (Emerald Baseline) */}
-            {(activeFilter === 'clean' || activeFilter === 'heatmap' || activeFilter === 'ela' || activeFilter === 'edges') && (
-              <g id="clean-graph-series">
-                <path
-                  d="M 60 420 
-                     C 180 370, 240 360, 340 375 
-                     C 440 390, 520 340, 620 360 
-                     C 720 380, 800 350, 960 380 
-                     L 960 420 Z"
-                  fill="url(#cleanAreaGrad)"
-                />
-                <path
-                  d="M 60 420 
-                     C 180 370, 240 360, 340 375 
-                     C 440 390, 520 340, 620 360 
-                     C 720 380, 800 350, 960 380"
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="2.5"
-                  strokeDasharray={activeFilter === 'clean' ? 'none' : 'none'}
-                />
-                {/* Clean Data Points */}
-                <circle cx="340" cy="375" r="4" fill="#10b981" />
-                <circle cx="620" cy="360" r="4" fill="#10b981" />
-                <text x="345" y="365" fill="#10b981" fontSize="10" fontFamily="monospace">Clean: {cleanPercent}%</text>
-              </g>
-            )}
-
-            {/* 2. Suspicious Graph Area & Curve (Amber Fluctuations) */}
-            {activeFilter !== 'clean' && (
-              <g id="suspicious-graph-series">
-                <path
-                  d="M 60 420 
-                     C 140 400, 200 280, 280 260 
-                     C 360 240, 440 320, 540 290 
-                     C 640 260, 720 220, 800 250 
-                     C 880 280, 920 340, 960 420 Z"
-                  fill="url(#suspiciousAreaGrad)"
-                />
-                <path
-                  d="M 60 420 
-                     C 140 400, 200 280, 280 260 
-                     C 360 240, 440 320, 540 290 
-                     C 640 260, 720 220, 800 250 
-                     C 880 280, 920 340, 960 420"
-                  fill="none"
-                  stroke="#f59e0b"
-                  strokeWidth="2.5"
-                />
-                {/* Suspicious Peak Marker */}
-                <circle cx="280" cy="260" r="4" fill="#f59e0b" />
-                <circle cx="800" cy="250" r="4" fill="#f59e0b" />
-                <text x="285" y="250" fill="#f59e0b" fontSize="10" fontFamily="monospace">Suspicious: {suspiciousPercent}%</text>
-              </g>
-            )}
-
-            {/* 3. Risks Graph Area & Sharp Peak Curve (Rose Critical Spikes) */}
-            {activeFilter !== 'clean' && (
-              <g id="risks-graph-series">
-                <path
-                  d="M 60 420 
-                     C 120 420, 180 340, 220 280 
-                     C 250 240, 280 140, 310 100 
-                     C 330 75, 360 90, 390 150 
-                     C 420 210, 480 360, 560 380 
-                     C 620 395, 680 290, 720 180 
-                     C 750 110, 780 90, 810 120 
-                     C 840 150, 890 320, 960 420 Z"
-                  fill="url(#riskAreaGrad)"
-                />
-                <path
-                  d="M 60 420 
-                     C 120 420, 180 340, 220 280 
-                     C 250 240, 280 140, 310 100 
-                     C 330 75, 360 90, 390 150 
-                     C 420 210, 480 360, 560 380 
-                     C 620 395, 680 290, 720 180 
-                     C 750 110, 780 90, 810 120 
-                     C 840 150, 890 320, 960 420"
-                  fill="none"
-                  stroke="#f43f5e"
-                  strokeWidth="3.2"
-                />
-
-                {/* Critical Risk Peak Callouts */}
-                <circle cx="310" cy="100" r="6" fill="#f43f5e" className="animate-ping" opacity="0.6" />
-                <circle cx="310" cy="100" r="5" fill="#f43f5e" />
-                <text x="320" y="95" fill="#f43f5e" fontSize="12" fontWeight="bold" fontFamily="monospace">
-                  Tamper Peak: {risksPercent}%
-                </text>
-
-                <circle cx="780" cy="90" r="6" fill="#f43f5e" className="animate-ping" opacity="0.6" />
-                <circle cx="780" cy="90" r="5" fill="#f43f5e" />
-                <text x="790" y="85" fill="#f43f5e" fontSize="12" fontWeight="bold" fontFamily="monospace">
-                  Splicing Cluster: {risksPercent}%
-                </text>
-              </g>
-            )}
-
-            {/* Scanning Radar Line */}
-            <line x1="310" y1="60" x2="310" y2="420" stroke="rgba(244,63,94,0.4)" strokeWidth="1.5" strokeDasharray="3 3" />
-            <line x1="780" y1="60" x2="780" y2="420" stroke="rgba(244,63,94,0.4)" strokeWidth="1.5" strokeDasharray="3 3" />
-          </svg>
-
-          {/* Thermal Heatmap Gradient Overlays floating over graph risk peaks */}
-          {activeFilter === 'heatmap' && (
-            <div className="absolute inset-0 pointer-events-none">
-              {/* Hotspot 1 (at Risk Peak x:31%, y:20%) */}
-              <div 
-                className="absolute w-52 h-40 rounded-full filter blur-2xl opacity-80 animate-pulse"
-                style={{
-                  top: '15%',
-                  left: '26%',
-                  background: 'radial-gradient(circle, rgba(239,68,68,0.9) 0%, rgba(249,115,22,0.65) 45%, rgba(234,179,8,0.25) 75%, transparent 100%)'
-                }}
-              />
-              {/* Hotspot 2 (at Splicing Cluster x:76%, y:18%) */}
-              <div 
-                className="absolute w-56 h-36 rounded-full filter blur-xl opacity-75"
-                style={{
-                  top: '14%',
-                  left: '70%',
-                  background: 'radial-gradient(circle, rgba(244,63,94,0.85) 0%, rgba(249,115,22,0.6) 45%, rgba(234,179,8,0.2) 80%, transparent 100%)'
-                }}
-              />
+        {/* Top Group Headers / Category Badges */}
+        <div className="relative z-10 flex flex-col md:flex-row items-stretch gap-4 pb-4 mb-3 border-b border-cyan-950/80">
+          
+          {/* Group 1 Header Label */}
+          <div className="w-full md:w-[38%] flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900/80 border border-cyan-500/20 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#38bdf8]" />
+              <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-cyan-300">
+                GROUP 1: Overall Classification
+              </span>
             </div>
-          )}
+            <span className="text-[10px] font-mono text-slate-400">
+              3 Spectrum Bars
+            </span>
+          </div>
 
-          {/* Filter Mode Specific Graphical Overlays */}
-          {activeFilter === 'ela' && (
-            <div className="absolute inset-0 pointer-events-none mix-blend-screen opacity-40 bg-[radial-gradient(#00ffff_1px,transparent_1px)] [background-size:16px_16px]" />
-          )}
+          {/* Group 2 Header Label */}
+          <div className="w-full md:flex-1 flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900/80 border border-cyan-500/20 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-violet-400 shadow-[0_0_8px_#a78bfa]" />
+              <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-violet-300">
+                GROUP 2: Forensic Anomaly Indicators
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">
+              5 Forensic Indicators
+            </span>
+          </div>
+        </div>
 
-          {activeFilter === 'edges' && (
-            <div className="absolute inset-0 pointer-events-none mix-blend-color-dodge opacity-30 bg-gradient-to-r from-transparent via-violet-500/20 to-transparent" />
-          )}
+        {/* Main Chart Area with Y-Axis and Vertical Bars */}
+        <div className="relative z-10 flex gap-2 sm:gap-4 h-[380px] sm:h-[420px] pt-4 pb-2">
+          
+          {/* Y-Axis Scale (0% - 100%) */}
+          <div className="w-9 sm:w-11 shrink-0 flex flex-col justify-between text-[10px] font-mono text-cyan-400/70 text-right pr-1 pb-16 pt-4 select-none">
+            <span className="leading-none">100%</span>
+            <span className="leading-none">75%</span>
+            <span className="leading-none">50%</span>
+            <span className="leading-none">25%</span>
+            <span className="leading-none text-cyan-500/90 font-bold">0%</span>
+          </div>
 
-          {/* Interactive Bounding Boxes for Detected Anomalies over the Graph */}
-          {activeFilter !== 'clean' && anomalies.map((anomaly) => {
-            if (!anomaly.location) return null;
-            const isSelected = selectedAnomaly?.id === anomaly.id;
-            return (
-              <div
-                key={anomaly.id}
-                onClick={() => setSelectedAnomaly(isSelected ? null : anomaly)}
-                className={`absolute cursor-pointer border-2 transition-all duration-200 group ${
-                  anomaly.severity === 'critical'
-                    ? 'border-rose-500 bg-rose-500/25 hover:bg-rose-500/35'
-                    : 'border-amber-400 bg-amber-400/25 hover:bg-amber-400/35'
-                } ${isSelected ? 'ring-4 ring-rose-400/50 scale-105 z-20' : 'z-10'}`}
-                style={{
-                  left: `${anomaly.location.x}%`,
-                  top: `${anomaly.location.y}%`,
-                  width: `${anomaly.location.width}%`,
-                  height: `${anomaly.location.height}%`
-                }}
-              >
-                {/* Hotspot Tag */}
-                <div className={`absolute -top-6 left-0 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase text-white shadow-md flex items-center gap-1 ${
-                  anomaly.severity === 'critical' ? 'bg-rose-600' : 'bg-amber-600'
-                }`}>
-                  <AlertTriangle className="w-2.5 h-2.5" />
-                  {anomaly.category} ({Math.round(anomaly.confidence)}%)
+          {/* Grid Lines Overlay Behind Bars */}
+          <div className="absolute left-10 sm:left-14 right-2 top-8 bottom-20 pointer-events-none z-0 flex flex-col justify-between">
+            <div className="w-full border-b border-cyan-500/25 border-dashed" />
+            <div className="w-full border-b border-cyan-500/15 border-dashed" />
+            <div className="w-full border-b border-cyan-500/20 border-dashed" />
+            <div className="w-full border-b border-cyan-500/15 border-dashed" />
+            <div className="w-full border-b-2 border-cyan-500/40 shadow-[0_1px_4px_rgba(56,189,248,0.3)]" />
+          </div>
+
+          {/* Bars Stage Container */}
+          <div className="flex-1 flex gap-2 sm:gap-4 relative z-10">
+            
+            {/* ======================================================== */}
+            {/* GROUP 1: OVERALL CLASSIFICATION (3 VERTICAL BARS) */}
+            {/* ======================================================== */}
+            <div className="w-[36%] sm:w-[38%] flex items-stretch justify-around px-1 sm:px-3 rounded-xl bg-slate-950/40 border border-cyan-500/15 relative">
+              {overallBars.map((bar) => {
+                const isHovered = hoveredBarId === bar.id;
+                const isSelected = selectedBarId === bar.id;
+                const colors = getBarColorClasses(bar.type, isHovered, isSelected);
+                const targetHeight = isAnimated ? `${bar.value}%` : '0%';
+
+                return (
+                  <div
+                    key={bar.id}
+                    id={`bar-${bar.id}`}
+                    onMouseEnter={() => setHoveredBarId(bar.id)}
+                    onMouseLeave={() => setHoveredBarId(null)}
+                    onClick={() => setSelectedBarId(bar.id)}
+                    className="flex-1 max-w-[64px] min-w-[32px] mx-1 flex flex-col items-center justify-end cursor-pointer group"
+                  >
+                    {/* Tooltip on Hover */}
+                    {isHovered && (
+                      <div className="absolute top-1 z-30 px-2.5 py-1.5 rounded-lg bg-slate-950/95 border border-cyan-400 text-white text-[11px] font-mono shadow-2xl backdrop-blur-md pointer-events-none whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span className={`w-2 h-2 rounded-full ${bar.type === 'risk' ? 'bg-rose-500' : bar.type === 'suspicious' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                          <span>{bar.name}:</span>
+                          <span className={colors.text}>{bar.value}%</span>
+                        </div>
+                        <p className="text-[10px] text-slate-300">{bar.badge}</p>
+                      </div>
+                    )}
+
+                    {/* Value Badge Above Bar */}
+                    <div className="mb-2 text-center transition-transform duration-200 group-hover:scale-110">
+                      <span className={`text-xs sm:text-sm font-extrabold font-mono tracking-tight ${colors.text}`}>
+                        {bar.value}%
+                      </span>
+                    </div>
+
+                    {/* Vertical Bar Column Stage (extends from bottom baseline 0% upward) */}
+                    <div className="w-full h-[220px] sm:h-[260px] flex items-end justify-center">
+                      <div
+                        className={`w-full rounded-t-xl transition-all duration-700 ease-out relative ${colors.barBg} ${colors.glow}`}
+                        style={{ height: targetHeight }}
+                      >
+                        {/* Neon Top Edge Cap Highlight */}
+                        <div className={`absolute top-0 inset-x-0 h-1 rounded-t-xl ${colors.topCap}`} />
+
+                        {/* Subtle Vertical Sheen */}
+                        <div className="absolute inset-0 rounded-t-xl bg-gradient-to-r from-white/20 via-transparent to-black/30 pointer-events-none" />
+
+                        {/* Glowing Pulse Dot at Bar Peak */}
+                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_#ffffff] opacity-80 group-hover:opacity-100 group-hover:scale-125 transition-all" />
+                      </div>
+                    </div>
+
+                    {/* Bottom X-Axis Label */}
+                    <div className="h-16 pt-2 text-center flex flex-col items-center justify-start">
+                      <span className="text-[11px] sm:text-xs font-bold font-mono text-slate-200 group-hover:text-white transition-colors leading-tight truncate max-w-full">
+                        {bar.shortLabel || bar.name}
+                      </span>
+                      <span className={`mt-0.5 text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded-full border ${colors.badge} hidden sm:inline-block`}>
+                        {bar.type.toUpperCase()}
+                      </span>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ======================================================== */}
+            {/* CLEAR VISUAL DIVIDER BETWEEN GROUP 1 AND GROUP 2 */}
+            {/* ======================================================== */}
+            <div className="w-6 sm:w-8 flex flex-col items-center justify-center shrink-0 relative">
+              {/* Vertical Dashed Neon Line */}
+              <div className="h-[280px] sm:h-[320px] w-0.5 border-r border-dashed border-cyan-400/50 relative">
+                {/* Center Separation Icon / Badge */}
+                <div className="absolute top-1/2 -translate-y-1/2 -left-2.5 p-1 rounded-full bg-slate-900 border border-cyan-400/60 shadow-[0_0_8px_rgba(56,189,248,0.5)]">
+                  <Sliders className="w-3 h-3 text-cyan-400" />
                 </div>
               </div>
-            );
-          })}
+              <span className="mt-2 text-[9px] font-mono text-slate-500 rotate-90 sm:rotate-0 tracking-widest uppercase">
+                DIV
+              </span>
+            </div>
+
+            {/* ======================================================== */}
+            {/* GROUP 2: FORENSIC INDICATORS (5 VERTICAL BARS) */}
+            {/* ======================================================== */}
+            <div className="flex-1 flex items-stretch justify-around px-1 sm:px-3 rounded-xl bg-slate-950/40 border border-violet-500/15 relative">
+              {displayedIndicators.map((bar) => {
+                const isHovered = hoveredBarId === bar.id;
+                const isSelected = selectedBarId === bar.id;
+                const colors = getBarColorClasses(bar.type, isHovered, isSelected);
+                const targetHeight = isAnimated ? `${bar.value}%` : '0%';
+
+                return (
+                  <div
+                    key={bar.id}
+                    id={`bar-${bar.id}`}
+                    onMouseEnter={() => setHoveredBarId(bar.id)}
+                    onMouseLeave={() => setHoveredBarId(null)}
+                    onClick={() => setSelectedBarId(bar.id)}
+                    className="flex-1 max-w-[64px] min-w-[28px] mx-0.5 sm:mx-1 flex flex-col items-center justify-end cursor-pointer group"
+                  >
+                    {/* Tooltip on Hover */}
+                    {isHovered && (
+                      <div className="absolute top-1 z-30 px-2.5 py-1.5 rounded-lg bg-slate-950/95 border border-cyan-400 text-white text-[11px] font-mono shadow-2xl backdrop-blur-md pointer-events-none whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span className={`w-2 h-2 rounded-full ${bar.type === 'risk' ? 'bg-rose-500' : bar.type === 'suspicious' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                          <span>{bar.name}:</span>
+                          <span className={colors.text}>{bar.value}%</span>
+                        </div>
+                        <p className="text-[10px] text-slate-300">{bar.category}</p>
+                        <p className="text-[9px] text-cyan-400 mt-0.5">{bar.badge}</p>
+                      </div>
+                    )}
+
+                    {/* Value Badge Above Bar */}
+                    <div className="mb-2 text-center transition-transform duration-200 group-hover:scale-110">
+                      <span className={`text-xs sm:text-sm font-extrabold font-mono tracking-tight ${colors.text}`}>
+                        {bar.value}%
+                      </span>
+                    </div>
+
+                    {/* Vertical Bar Column Stage (extends from bottom baseline 0% upward) */}
+                    <div className="w-full h-[220px] sm:h-[260px] flex items-end justify-center">
+                      <div
+                        className={`w-full rounded-t-xl transition-all duration-700 ease-out relative ${colors.barBg} ${colors.glow}`}
+                        style={{ height: targetHeight }}
+                      >
+                        {/* Neon Top Edge Cap Highlight */}
+                        <div className={`absolute top-0 inset-x-0 h-1 rounded-t-xl ${colors.topCap}`} />
+
+                        {/* Subtle Vertical Sheen */}
+                        <div className="absolute inset-0 rounded-t-xl bg-gradient-to-r from-white/20 via-transparent to-black/30 pointer-events-none" />
+
+                        {/* Glowing Pulse Dot at Bar Peak */}
+                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_#ffffff] opacity-80 group-hover:opacity-100 group-hover:scale-125 transition-all" />
+                      </div>
+                    </div>
+
+                    {/* Bottom X-Axis Label */}
+                    <div className="h-16 pt-2 text-center flex flex-col items-center justify-start">
+                      <span className="text-[10px] sm:text-xs font-bold font-mono text-slate-200 group-hover:text-white transition-colors leading-tight truncate max-w-full">
+                        {bar.shortLabel || bar.name}
+                      </span>
+                      <span className={`mt-0.5 text-[9px] font-mono font-semibold px-1 py-0.2 rounded-full border ${colors.badge} hidden sm:inline-block`}>
+                        {bar.badge}
+                      </span>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+
+          </div>
         </div>
 
-        {/* Graph Legend Overlay at bottom-left */}
-        <div className="absolute bottom-3 left-3 p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 backdrop-blur-md shadow-xl text-[10px] font-mono text-slate-300 flex flex-wrap items-center gap-4">
-          <span className="text-slate-400 font-bold uppercase tracking-wider">Graph Spectrum:</span>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-rose-500 shadow-xs shadow-rose-500/50" />
-            <span className="text-rose-300 font-bold">Risks ({risksPercent}%)</span>
+        {/* Legend & Calibration Footer */}
+        <div className="relative z-10 pt-3 mt-1 flex flex-wrap items-center justify-between gap-3 text-[10px] font-mono text-slate-400 border-t border-cyan-950/70">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.9)]" />
+              <span className="text-slate-300">Neon Red/Pink: Risks / Critical Anomaly</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.9)]" />
+              <span className="text-slate-300">Orange/Yellow: Suspicious</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]" />
+              <span className="text-slate-300">Green: Verified Clean</span>
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-amber-500 shadow-xs shadow-amber-500/50" />
-            <span className="text-amber-300 font-bold">Suspicious ({suspiciousPercent}%)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/50" />
-            <span className="text-emerald-300 font-bold">Verified Clean ({cleanPercent}%)</span>
+
+          <div className="flex items-center gap-2 text-cyan-400">
+            <Sparkles className="w-3 h-3" />
+            <span>VERTICAL COLUMN GRAPH • 0–100% Y-AXIS CALIBRATION</span>
           </div>
         </div>
 
-        {/* Graph Coordinate HUD at bottom-right */}
-        <div className="hidden sm:flex absolute bottom-3 right-3 p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-slate-400 items-center gap-2">
-          <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
-          <span>SPECTRAL SAMPLE: 8x8 DCT BLOCKS</span>
-        </div>
       </div>
 
-      {/* Selected Anomaly Details Inspector Drawer */}
-      {selectedAnomaly && (
-        <div className="p-4 bg-rose-950/20 dark:bg-rose-950/30 border-t border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in duration-200">
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-bold text-rose-400 font-display">{selectedAnomaly.title}</p>
-              <p className="text-slate-300 text-[11px] mt-0.5">{selectedAnomaly.description}</p>
-              <p className="text-[10px] font-mono text-cyan-400 mt-1">Evidence: {selectedAnomaly.evidence}</p>
+      {/* Interactive Detail Inspector Drawer for Selected / Hovered Bar */}
+      {activeBar && (
+        <div className="p-4 bg-slate-100/90 dark:bg-[#050a18] border-t border-slate-200 dark:border-cyan-950/80 flex flex-wrap items-center justify-between gap-4 text-xs animate-in fade-in duration-200">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+              activeBar.type === 'risk'
+                ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
+                : activeBar.type === 'suspicious'
+                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
+                : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+            }`}>
+              <Info className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-slate-900 dark:text-white font-mono text-sm">
+                  {activeBar.name}
+                </span>
+                <span className="text-[11px] font-mono text-cyan-600 dark:text-cyan-400">
+                  [{activeBar.category}]
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                  activeBar.type === 'risk'
+                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                    : activeBar.type === 'suspicious'
+                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                    : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                }`}>
+                  Metric: {activeBar.value}%
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  {activeBar.group === 'overall' ? 'Group 1: Overall' : 'Group 2: Forensic Indicator'}
+                </span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                {activeBar.description}
+              </p>
+              <p className="text-[11px] font-mono text-cyan-700 dark:text-cyan-300">
+                <strong>Forensic Evidence:</strong> {activeBar.evidence}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 font-mono text-[11px] font-bold">
-              Confidence: {selectedAnomaly.confidence}%
-            </span>
+
+          <div className="shrink-0 flex items-center gap-2">
             <button
-              onClick={() => setSelectedAnomaly(null)}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs cursor-pointer"
+              onClick={() => {
+                setSelectedBarId(null);
+                setHoveredBarId(null);
+              }}
+              className="px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs cursor-pointer transition-colors"
             >
-              Close
+              Reset Focus
             </button>
           </div>
         </div>
       )}
+
     </div>
   );
 };
+
 

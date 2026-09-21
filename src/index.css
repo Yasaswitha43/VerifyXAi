@@ -134,3 +134,22 @@ a:hover .btn-icon-arrow {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* RTL Support for Arabic (ar-SA) */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .text-left {
+  text-align: right !important;
+}
+
+[dir="rtl"] .text-right {
+  text-align: left !important;
+}
+
+[dir="rtl"] button:hover .btn-icon-arrow,
+[dir="rtl"] a:hover .btn-icon-arrow {
+  transform: translateX(-3px);
+}
+
